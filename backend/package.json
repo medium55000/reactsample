@@ -1,0 +1,22 @@
+{
+  "name": "backend",
+  "version": "1.0.0",
+  "description": "Express + MongoDB backend sample",
+  "type": "module",
+  "main": "src/index.js",
+  "scripts": {
+    "dev": "cross-env ENV_PATH=.env.development nodemon src/index.js",
+    "test-env": "cross-env ENV_PATH=.env.test node src/index.js",
+    "start": "cross-env ENV_PATH=.env.production node src/index.js"
+  },
+  "dependencies": {
+    "cors": "^2.8.5",
+    "dotenv": "^17.2.3",
+    "express": "^5.1.0",
+    "mongoose": "^8.19.2"
+  },
+  "devDependencies": {
+    "nodemon": "^3.1.10",
+    "cross-env": "^7.0.3"
+  }
+}
