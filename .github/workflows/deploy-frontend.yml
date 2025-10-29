@@ -38,7 +38,7 @@ jobs:
             echo "BUILD_MODE=production" >> $GITHUB_OUTPUT
           fi
 
-      # 1) GCP 인증 (시크릿에 '서비스계정 JSON 전체'가 들어있어야 함)
+      # 1) GCP 인증
       - name: Auth to Google Cloud
         uses: google-github-actions/auth@v2
         with:
@@ -64,7 +64,8 @@ jobs:
             artifactregistry.googleapis.com \
             cloudbuild.googleapis.com
 
-      - name: Build & Push Docker image (BUILD_MODE)
+      # ⬇️ Cloud Build config로 BUILD_MODE 등 전달
+      - name: Build & Push Docker image (via Cloud Build config)
         env:
           PROJECT_ID: ${{ secrets[format('GCP_PROJECT_ID_{0}', steps.map.outputs.ENV)] }}
           REGION: ${{ secrets.GCP_REGION }}
@@ -74,10 +75,15 @@ jobs:
         run: |
           TAG=${GITHUB_SHA}
           gcloud builds submit frontend \
-            --tag "${REGION}-docker.pkg.dev/${PROJECT_ID}/${AR_REPO}/frontend-${ENV_LOWER}:${TAG}" \
+            --config frontend/cloudbuild.yaml \
             --region "${REGION}" \
-            -- \
-            --build-arg BUILD_MODE="${BUILD_MODE}"
+            --substitutions \
+              _PROJECT_ID="${PROJECT_ID}",\
+              _REGION="${REGION}",\
+              _AR_REPO="${AR_REPO}",\
+              _ENV_LOWER="${ENV_LOWER}",\
+              _TAG="${TAG}",\
+              _BUILD_MODE="${BUILD_MODE}"
 
       - name: Deploy to Cloud Run
         env:
@@ -90,7 +96,7 @@ jobs:
           IMAGE="${REGION}-docker.pkg.dev/${PROJECT_ID}/${AR_REPO}/frontend-${ENV_LOWER}:${TAG}"
           SERVICE="frontend-${ENV_LOWER}"
           gcloud run deploy "${SERVICE}" \
-            --image="${IMAGE}" \
+            --image "${IMAGE}" \
             --region "${REGION}" \
             --platform managed \
             --allow-unauthenticated \
