@@ -1,9 +1,9 @@
 name: Deploy Backend (dev/test/prod)
 
 on:
-  workflow_dispatch: {} 
+  workflow_dispatch: {}
   push:
-    branches: [ "dev", "test", "main" ]
+    branches: ["dev", "test", "main"]
     paths:
       - "backend/**"
 
@@ -35,18 +35,24 @@ jobs:
             echo "ENV_LOWER=prod" >> $GITHUB_OUTPUT
           fi
 
+      # 1) GCP 인증
+      - name: Auth to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets[format('GCP_SA_KEY_{0}', steps.map.outputs.ENV)] }}
+
+      # 2) gcloud 설치 + 프로젝트 설정
       - name: Setup gcloud
         uses: google-github-actions/setup-gcloud@v2
         with:
           project_id: ${{ secrets[format('GCP_PROJECT_ID_{0}', steps.map.outputs.ENV)] }}
-          service_account_key: ${{ secrets[format('GCP_SA_KEY_{0}', steps.map.outputs.ENV)] }}
-          export_default_credentials: true
+          install_components: "beta"
 
-      #- name: Activate service account
-      #  run: |
-      #    gcloud auth activate-service-account --key-file="$GOOGLE_APPLICATION_CREDENTIALS"
-      #    gcloud config set account "$(gcloud auth list --format='value(account)' --filter='status:ACTIVE')"
-      #    gcloud config set project "${{ secrets[format('GCP_PROJECT_ID_{0}', steps.map.outputs.ENV)] }}"
+      - name: Verify gcloud auth
+        run: |
+          gcloud --version
+          echo "ACTIVE ACCOUNT:" && gcloud auth list --filter=status:ACTIVE --format='value(account)'
+          echo "PROJECT:" && gcloud config list --format='value(core.project)'
 
       - name: Enable required APIs
         run: |
@@ -66,7 +72,7 @@ jobs:
           TAG=${GITHUB_SHA}
           gcloud builds submit backend \
             --tag "${REGION}-docker.pkg.dev/${PROJECT_ID}/${AR_REPO}/backend-${ENV_LOWER}:${TAG}" \
-            --region="${REGION}"
+            --region "${REGION}"
 
       - name: Deploy to Cloud Run
         env:
@@ -82,11 +88,12 @@ jobs:
           SERVICE="api-${ENV_LOWER}"
 
           gcloud run deploy "${SERVICE}" \
-            --image="${IMAGE}" \
-            --region="${REGION}" \
-            --platform=managed \
+            --image "${IMAGE}" \
+            --region "${REGION}" \
+            --platform managed \
             --allow-unauthenticated \
-            --port=8080 \
-            --service-account="${RUNTIME_SA}" \
-            --set-env-vars=PORT=8080 \
-            --set-env-vars=MONGODB_URI="${MONGODB_URI}"
+            --port 8080 \
+            --service-account "${RUNTIME_SA}" \
+            --set-env-vars PORT=8080 \
+            --set-env-vars MONGODB_URI="${MONGODB_URI}" \
+            --quiet
