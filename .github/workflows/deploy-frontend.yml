@@ -24,22 +24,28 @@ jobs:
       # 브랜치 → 환경 매핑
       - name: Map branch to environment
         id: map
+        shell: bash
         run: |
-          if [ "${GITHUB_REF_NAME}" = "dev" ]; then
-            echo "ENV=DEV"               >> $GITHUB_OUTPUT
-            echo "ENV_LOWER=dev"         >> $GITHUB_OUTPUT
-            echo "BUILD_MODE=development" >> $GITHUB_OUTPUT
-          elif [ "${GITHUB_REF_NAME}" = "test" ]; then
-            echo "ENV=TEST"              >> $GITHUB_OUTPUT
-            echo "ENV_LOWER=test"        >> $GITHUB_OUTPUT
-            echo "BUILD_MODE=test"       >> $GITHUB_OUTPUT
-          else
-            echo "ENV=PROD"              >> $GITHUB_OUTPUT
-            echo "ENV_LOWER=prod"        >> $GITHUB_OUTPUT
-            echo "BUILD_MODE=production" >> $GITHUB_OUTPUT
-          fi
+          set -euo pipefail
+          case "${GITHUB_REF_NAME}" in
+            dev)
+              echo "ENV=DEV"                >> "$GITHUB_OUTPUT"
+              echo "ENV_LOWER=dev"          >> "$GITHUB_OUTPUT"
+              echo "BUILD_MODE=development" >> "$GITHUB_OUTPUT"
+              ;;
+            test)
+              echo "ENV=TEST"               >> "$GITHUB_OUTPUT"
+              echo "ENV_LOWER=test"         >> "$GITHUB_OUTPUT"
+              echo "BUILD_MODE=test"        >> "$GITHUB_OUTPUT"
+              ;;
+            *)
+              echo "ENV=PROD"               >> "$GITHUB_OUTPUT"
+              echo "ENV_LOWER=prod"         >> "$GITHUB_OUTPUT"
+              echo "BUILD_MODE=production"  >> "$GITHUB_OUTPUT"
+              ;;
+          esac
 
-      # 1) GCP 인증
+      # 1) GCP 인증 (레포 시크릿에 GCP_SA_KEY_DEV/TEST/PROD 가 JSON 전체로 있어야 함)
       - name: Authenticate to Google Cloud
         uses: google-github-actions/auth@v2
         with:
@@ -51,20 +57,71 @@ jobs:
         with:
           project_id: ${{ secrets[format('GCP_PROJECT_ID_{0}', steps.map.outputs.ENV)] }}
 
-      # 3) Cloud Build로 이미지 빌드 & 푸시 (cloudbuild.yaml + substitutions)
-      - name: Build & Push via Cloud Build (with BUILD_MODE)
+      # (선택) 업로드될 파일을 한번 눈으로 확인 - 문제 생기면 이 스텝 보고 판단
+      - name: Debug | list files to be built
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "::group::Repo root"
+          ls -la
+          echo "::endgroup::"
+          echo "::group::frontend/"
+          ls -la frontend || true
+          echo "::endgroup::"
+          echo "::group::Show important files"
+          test -f frontend/cloudbuild.yaml && echo "✓ frontend/cloudbuild.yaml OK" || echo "✗ frontend/cloudbuild.yaml MISSING"
+          test -f frontend/Dockerfile && echo "✓ frontend/Dockerfile OK" || echo "✗ frontend/Dockerfile MISSING"
+          test -f frontend/package.json && echo "✓ frontend/package.json OK" || echo "✗ frontend/package.json MISSING"
+          echo "::endgroup::"
+
+      # 3) Cloud Build 제출(비동기) + 상태 폴링
+      - name: Build & Push via Cloud Build (async + poll)
         env:
           PROJECT_ID: ${{ secrets[format('GCP_PROJECT_ID_{0}', steps.map.outputs.ENV)] }}
           REGION:     ${{ secrets.GCP_REGION }}
           AR_REPO:    ${{ secrets.AR_REPO }}
           ENV_LOWER:  ${{ steps.map.outputs.ENV_LOWER }}
           BUILD_MODE: ${{ steps.map.outputs.BUILD_MODE }}
+        shell: bash
         run: |
-          TAG=${GITHUB_SHA}
-          gcloud builds submit frontend \
+          set -euo pipefail
+          TAG="${GITHUB_SHA}"
+
+          echo "Submitting Cloud Build..."
+          BUILD_ID="$(gcloud builds submit frontend \
             --config=frontend/cloudbuild.yaml \
-            --region="$REGION" \
-            --substitutions=_PROJECT_ID="$PROJECT_ID",_REGION="$REGION",_AR_REPO="$AR_REPO",_ENV_LOWER="$ENV_LOWER",_TAG="$TAG",_BUILD_MODE="$BUILD_MODE"
+            --region="${REGION}" \
+            --substitutions=_PROJECT_ID="${PROJECT_ID}",_REGION="${REGION}",_AR_REPO="${AR_REPO}",_ENV_LOWER="${ENV_LOWER}",_TAG="${TAG}",_BUILD_MODE="${BUILD_MODE}" \
+            --async \
+            --format='value(metadata.build.id)' \
+            --quiet)"
+
+          if [[ -z "${BUILD_ID}" ]]; then
+            echo "✗ Failed to get Cloud Build ID"
+            exit 1
+          fi
+          echo "Cloud Build ID: ${BUILD_ID}"
+          echo "Logs URL: https://console.cloud.google.com/cloud-build/builds;region=${REGION}/${BUILD_ID}?project=${PROJECT_ID}"
+
+          # 최대 12분(144 * 5s) 폴링
+          for i in $(seq 1 144); do
+            STATUS="$(gcloud builds describe "${BUILD_ID}" --region="${REGION}" --format='value(status)')"
+            echo "Build status: ${STATUS}"
+            case "${STATUS}" in
+              SUCCESS)
+                echo "✓ Build succeeded."
+                break
+                ;;
+              FAILURE|CANCELLED|TIMEOUT|EXPIRED)
+                echo "✗ Build failed with status: ${STATUS}"
+                echo "Logs: https://console.cloud.google.com/cloud-build/builds;region=${REGION}/${BUILD_ID}?project=${PROJECT_ID}"
+                exit 1
+                ;;
+              *)
+                sleep 5
+                ;;
+            esac
+          done
 
       # 4) Cloud Run 배포
       - name: Deploy to Cloud Run
@@ -74,11 +131,14 @@ jobs:
           AR_REPO:    ${{ secrets.AR_REPO }}
           ENV_LOWER:  ${{ steps.map.outputs.ENV_LOWER }}
           RUNTIME_SA: ${{ secrets[format('RUNTIME_SA_{0}', steps.map.outputs.ENV)] }}
+        shell: bash
         run: |
-          TAG=${GITHUB_SHA}
+          set -euo pipefail
+          TAG="${GITHUB_SHA}"
           IMAGE="${REGION}-docker.pkg.dev/${PROJECT_ID}/${AR_REPO}/frontend-${ENV_LOWER}:${TAG}"
           SERVICE="frontend-${ENV_LOWER}"
 
+          echo "Deploying ${SERVICE} with image ${IMAGE}"
           gcloud run deploy "${SERVICE}" \
             --image="${IMAGE}" \
             --region="${REGION}" \

@@ -1,6 +1,7 @@
 # frontend/.gcloudignore
+# 이 파일은 gcloud 업로드 대상을 제어합니다.
 
-# 반드시 포함
+# === 반드시 포함 ===
 Dockerfile
 cloudbuild.yaml
 package.json
@@ -9,7 +10,7 @@ vite.config.*
 src/**
 public/**
 
-# 제외
+# === 제외 권장 ===
 node_modules/
 dist/
 *.log

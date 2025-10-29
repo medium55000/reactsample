@@ -11,14 +11,18 @@ steps:
   - name: "gcr.io/cloud-builders/docker"
     id: "Build image with BUILD_MODE"
     args:
+      # 이미지를 태깅
       - "build"
       - "-t"
       - "${_REGION}-docker.pkg.dev/${_PROJECT_ID}/${_AR_REPO}/frontend-${_ENV_LOWER}:${_TAG}"
+      # Dockerfile 경로를 명시적으로 지정(중요!)
+      - "-f"
+      - "frontend/Dockerfile"
+      # 빌드 인자 전달
       - "--build-arg"
       - "BUILD_MODE=${_BUILD_MODE}"
-      - "."
-    dir: "frontend"
-    args: ["build", "-t", "...", "--build-arg", "BUILD_MODE=...", "."]
+      # 빌드 컨텍스트(= 소스 위치)
+      - "frontend"
 
 images:
   - "${_REGION}-docker.pkg.dev/${_PROJECT_ID}/${_AR_REPO}/frontend-${_ENV_LOWER}:${_TAG}"
