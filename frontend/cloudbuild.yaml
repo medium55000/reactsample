@@ -4,12 +4,12 @@ substitutions:
   _REGION: ""
   _AR_REPO: ""
   _ENV_LOWER: ""
-  _TAG: "local"
-  _BUILD_MODE: "production"
+  _TAG: ""
+  _BUILD_MODE: "production"  # default
 
 steps:
   - name: gcr.io/cloud-builders/docker
-    dir: frontend
+    id: Build frontend image
     args:
       - build
       - -t
@@ -17,8 +17,14 @@ steps:
       - --build-arg
       - BUILD_MODE=${_BUILD_MODE}
       - -f
-      - Dockerfile
-      - .
+      - frontend/Dockerfile         # ← Dockerfile 경로 명시
+      - frontend                    # ← Docker 빌드 컨텍스트(소스 디렉토리)
+
+  - name: gcr.io/cloud-builders/docker
+    id: Push image
+    args:
+      - push
+      - ${_REGION}-docker.pkg.dev/${_PROJECT_ID}/${_AR_REPO}/frontend-${_ENV_LOWER}:${_TAG}
 
 images:
   - ${_REGION}-docker.pkg.dev/${_PROJECT_ID}/${_AR_REPO}/frontend-${_ENV_LOWER}:${_TAG}

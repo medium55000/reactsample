@@ -71,63 +71,80 @@ jobs:
           done
 
       # 3) Cloud Build 제출(비동기) + 상태 폴링  ← operations describe 사용 안 함!
-      - name: Build & Push via Cloud Build (async + poll without ops describe)
+      - name: Build & Push via Cloud Build (sync for debug)
         env:
           PROJECT_ID: ${{ secrets[format('GCP_PROJECT_ID_{0}', steps.map.outputs.ENV)] }}
           REGION:     ${{ secrets.GCP_REGION }}
           AR_REPO:    ${{ secrets.AR_REPO }}
           ENV_LOWER:  ${{ steps.map.outputs.ENV_LOWER }}
           BUILD_MODE: ${{ steps.map.outputs.BUILD_MODE }}
-        shell: bash
         run: |
           set -euo pipefail
           TAG="${GITHUB_SHA}"
-
-          echo "Submitting Cloud Build (async)…"
-          OP_NAME="$(gcloud builds submit frontend \
+          gcloud builds submit frontend \
             --config=frontend/cloudbuild.yaml \
             --region="${REGION}" \
-            --substitutions=_PROJECT_ID="${PROJECT_ID}",_REGION="${REGION}",_AR_REPO="${AR_REPO}",_ENV_LOWER="${ENV_LOWER}",_TAG="${TAG}",_BUILD_MODE="${BUILD_MODE}" \
-            --async \
-            --format='value(name)' \
-            --quiet || true)"
+            --substitutions=_PROJECT_ID="${PROJECT_ID}",_REGION="${REGION}",_AR_REPO="${AR_REPO}",_ENV_LOWER="${ENV_LOWER}",_TAG="${TAG}",_BUILD_MODE="${BUILD_MODE}"
+     
+     
+      # # 3) Cloud Build 제출(비동기) + 상태 폴링  ← operations describe 사용 안 함!
+      # - name: Build & Push via Cloud Build (async + poll without ops describe)
+      #   env:
+      #     PROJECT_ID: ${{ secrets[format('GCP_PROJECT_ID_{0}', steps.map.outputs.ENV)] }}
+      #     REGION:     ${{ secrets.GCP_REGION }}
+      #     AR_REPO:    ${{ secrets.AR_REPO }}
+      #     ENV_LOWER:  ${{ steps.map.outputs.ENV_LOWER }}
+      #     BUILD_MODE: ${{ steps.map.outputs.BUILD_MODE }}
+      #   shell: bash
+      #   run: |
+      #     set -euo pipefail
+      #     TAG="${GITHUB_SHA}"
 
-          if [[ -z "${OP_NAME:-}" ]]; then
-            echo "✗ Failed to get Operation name from gcloud (async submit)."
-            exit 1
-          fi
-          echo "Operation name: ${OP_NAME}"
+      #     echo "Submitting Cloud Build (async)…"
+      #     OP_NAME="$(gcloud builds submit frontend \
+      #       --config=frontend/cloudbuild.yaml \
+      #       --region="${REGION}" \
+      #       --substitutions=_PROJECT_ID="${PROJECT_ID}",_REGION="${REGION}",_AR_REPO="${AR_REPO}",_ENV_LOWER="${ENV_LOWER}",_TAG="${TAG}",_BUILD_MODE="${BUILD_MODE}" \
+      #       --async \
+      #       --format='value(name)' \
+      #       --quiet || true)"
 
-          #operation name → 마지막 토큰이 BUILD_ID
-          BUILD_ID="${OP_NAME##*/}"
+      #     if [[ -z "${OP_NAME:-}" ]]; then
+      #       echo "✗ Failed to get Operation name from gcloud (async submit)."
+      #       exit 1
+      #     fi
+      #     echo "Operation name: ${OP_NAME}"
 
-          if [[ -z "${BUILD_ID:-}" ]]; then
-            echo "✗ Failed to parse BUILD_ID from operation name."
-            exit 1
-          fi
+      #     #operation name → 마지막 토큰이 BUILD_ID
+      #     BUILD_ID="${OP_NAME##*/}"
 
-          echo "Cloud Build ID: ${BUILD_ID}"
-          echo "Logs URL: https://console.cloud.google.com/cloud-build/builds;region=${REGION}/${BUILD_ID}?project=${PROJECT_ID}"
+      #     if [[ -z "${BUILD_ID:-}" ]]; then
+      #       echo "✗ Failed to parse BUILD_ID from operation name."
+      #       exit 1
+      #     fi
 
-          # 최대 12분(144 * 5s) 폴링
-          for i in $(seq 1 144); do
-            STATUS="$(gcloud builds describe "${BUILD_ID}" --region="${REGION}" --format='value(status)' || true)"
-            echo "Build status: ${STATUS}"
-            case "${STATUS}" in
-              SUCCESS)
-                echo "✓ Build succeeded."
-                break
-                ;;
-              FAILURE|CANCELLED|TIMEOUT|EXPIRED)
-                echo "✗ Build failed with status: ${STATUS}"
-                echo "Logs: https://console.cloud.google.com/cloud-build/builds;region=${REGION}/${BUILD_ID}?project=${PROJECT_ID}"
-                exit 1
-                ;;
-              *)
-                sleep 5
-                ;;
-            esac
-          done
+      #     echo "Cloud Build ID: ${BUILD_ID}"
+      #     echo "Logs URL: https://console.cloud.google.com/cloud-build/builds;region=${REGION}/${BUILD_ID}?project=${PROJECT_ID}"
+
+      #     # 최대 12분(144 * 5s) 폴링
+      #     for i in $(seq 1 144); do
+      #       STATUS="$(gcloud builds describe "${BUILD_ID}" --region="${REGION}" --format='value(status)' || true)"
+      #       echo "Build status: ${STATUS}"
+      #       case "${STATUS}" in
+      #         SUCCESS)
+      #           echo "✓ Build succeeded."
+      #           break
+      #           ;;
+      #         FAILURE|CANCELLED|TIMEOUT|EXPIRED)
+      #           echo "✗ Build failed with status: ${STATUS}"
+      #           echo "Logs: https://console.cloud.google.com/cloud-build/builds;region=${REGION}/${BUILD_ID}?project=${PROJECT_ID}"
+      #           exit 1
+      #           ;;
+      #         *)
+      #           sleep 5
+      #           ;;
+      #       esac
+      #     done
 
       # 4) Cloud Run 배포
       - name: Deploy to Cloud Run
