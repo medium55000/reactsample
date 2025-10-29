@@ -87,25 +87,39 @@ jobs:
           set -euo pipefail
           TAG="${GITHUB_SHA}"
 
-          echo "Submitting Cloud Build..."
-          BUILD_ID="$(gcloud builds submit frontend \
+          echo "Submitting Cloud Build (async)..."
+          OP_NAME="$(gcloud builds submit frontend \
             --config=frontend/cloudbuild.yaml \
             --region="${REGION}" \
             --substitutions=_PROJECT_ID="${PROJECT_ID}",_REGION="${REGION}",_AR_REPO="${AR_REPO}",_ENV_LOWER="${ENV_LOWER}",_TAG="${TAG}",_BUILD_MODE="${BUILD_MODE}" \
             --async \
-            --format='value(metadata.build.id)' \
-            --quiet)"
+            --format='value(name)' \
+            --quiet || true)"
 
-          if [[ -z "${BUILD_ID}" ]]; then
-            echo "✗ Failed to get Cloud Build ID"
+          if [[ -z "${OP_NAME:-}" ]]; then
+            echo "✗ Failed to get Operation name from gcloud (async submit)."
             exit 1
           fi
+          echo "Operation name: ${OP_NAME}"
+
+          # operation → build id 변환
+          BUILD_ID="$(gcloud builds operations describe "${OP_NAME}" \
+            --region="${REGION}" \
+            --format='value(metadata.build.id)' || true)"
+
+          if [[ -z "${BUILD_ID:-}" ]]; then
+            echo "✗ Failed to resolve BUILD_ID from operation."
+            echo "Operation describe output (debug):"
+            gcloud builds operations describe "${OP_NAME}" --region="${REGION}" || true
+            exit 1
+          fi
+
           echo "Cloud Build ID: ${BUILD_ID}"
           echo "Logs URL: https://console.cloud.google.com/cloud-build/builds;region=${REGION}/${BUILD_ID}?project=${PROJECT_ID}"
 
           # 최대 12분(144 * 5s) 폴링
           for i in $(seq 1 144); do
-            STATUS="$(gcloud builds describe "${BUILD_ID}" --region="${REGION}" --format='value(status)')"
+            STATUS="$(gcloud builds describe "${BUILD_ID}" --region="${REGION}" --format='value(status)' || true)"
             echo "Build status: ${STATUS}"
             case "${STATUS}" in
               SUCCESS)
