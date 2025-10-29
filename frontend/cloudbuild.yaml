@@ -1,28 +1,24 @@
 # frontend/cloudbuild.yaml
 substitutions:
-  _PROJECT_ID: "SET_BY_WORKFLOW"
-  _REGION: "us-west2"
-  _AR_REPO: "reactsample-repo"
-  _ENV_LOWER: "dev"
+  _PROJECT_ID: ""
+  _REGION: ""
+  _AR_REPO: ""
+  _ENV_LOWER: ""
   _TAG: "local"
   _BUILD_MODE: "production"
 
 steps:
-  - name: "gcr.io/cloud-builders/docker"
-    id: "Build image with BUILD_MODE"
+  - name: gcr.io/cloud-builders/docker
+    dir: frontend
     args:
-      # 이미지를 태깅
-      - "build"
-      - "-t"
-      - "${_REGION}-docker.pkg.dev/${_PROJECT_ID}/${_AR_REPO}/frontend-${_ENV_LOWER}:${_TAG}"
-      # Dockerfile 경로를 명시적으로 지정(중요!)
-      - "-f"
-      - "frontend/Dockerfile"
-      # 빌드 인자 전달
-      - "--build-arg"
-      - "BUILD_MODE=${_BUILD_MODE}"
-      # 빌드 컨텍스트(= 소스 위치)
-      - "frontend"
+      - build
+      - -t
+      - ${_REGION}-docker.pkg.dev/${_PROJECT_ID}/${_AR_REPO}/frontend-${_ENV_LOWER}:${_TAG}
+      - --build-arg
+      - BUILD_MODE=${_BUILD_MODE}
+      - -f
+      - Dockerfile
+      - .
 
 images:
-  - "${_REGION}-docker.pkg.dev/${_PROJECT_ID}/${_AR_REPO}/frontend-${_ENV_LOWER}:${_TAG}"
+  - ${_REGION}-docker.pkg.dev/${_PROJECT_ID}/${_AR_REPO}/frontend-${_ENV_LOWER}:${_TAG}

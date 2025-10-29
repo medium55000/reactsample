@@ -1,16 +1,10 @@
-# ===== 반드시 포함 =====
-Dockerfile
-cloudbuild.yaml
-package.json
-package-lock.json
-vite.config.*
-src/**
-public/**
+# node_modules는 Docker 빌더가 설치하므로 제외
+node_modules
+dist
+dist-ssr
+*.local
 
-# ===== 제외 권장 =====
-node_modules/
-dist/
-*.log
-.vscode/
-.idea/
+# IDE
+.vscode
+.idea
 .DS_Store
