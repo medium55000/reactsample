@@ -1,11 +1,11 @@
 name: Deploy Frontend (dev/test/prod)
 
 on:
-  workflow_dispatch: {}
   push:
     branches: ["dev", "test", "main"]
     paths:
       - "frontend/**"
+  workflow_dispatch: {}
 
 concurrency:
   group: frontend-${{ github.ref_name }}
@@ -21,76 +21,75 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      # 브랜치 → 환경 매핑
       - name: Map branch to environment
         id: map
         run: |
           if [ "${GITHUB_REF_NAME}" = "dev" ]; then
-            echo "ENV=DEV" >> $GITHUB_OUTPUT
-            echo "ENV_LOWER=dev" >> $GITHUB_OUTPUT
+            echo "ENV=DEV"         >> $GITHUB_OUTPUT
+            echo "ENV_LOWER=dev"   >> $GITHUB_OUTPUT
             echo "BUILD_MODE=development" >> $GITHUB_OUTPUT
           elif [ "${GITHUB_REF_NAME}" = "test" ]; then
-            echo "ENV=TEST" >> $GITHUB_OUTPUT
-            echo "ENV_LOWER=test" >> $GITHUB_OUTPUT
+            echo "ENV=TEST"        >> $GITHUB_OUTPUT
+            echo "ENV_LOWER=test"  >> $GITHUB_OUTPUT
             echo "BUILD_MODE=test" >> $GITHUB_OUTPUT
           else
-            echo "ENV=PROD" >> $GITHUB_OUTPUT
-            echo "ENV_LOWER=prod" >> $GITHUB_OUTPUT
+            echo "ENV=PROD"        >> $GITHUB_OUTPUT
+            echo "ENV_LOWER=prod"  >> $GITHUB_OUTPUT
             echo "BUILD_MODE=production" >> $GITHUB_OUTPUT
           fi
 
-      # 1) 인증
-      - name: Auth to Google Cloud
+      # 1) GCP 인증 (레포 시크릿에 GCP_SA_KEY_DEV/TEST/PROD 가 JSON 전체로 있어야 함)
+      - name: Authenticate to Google Cloud
         uses: google-github-actions/auth@v2
         with:
           credentials_json: ${{ secrets[format('GCP_SA_KEY_{0}', steps.map.outputs.ENV)] }}
 
-      # 2) gcloud 설치 + 프로젝트 적용
+      # 2) gcloud 설치 + 프로젝트 설정
       - name: Setup gcloud
         uses: google-github-actions/setup-gcloud@v2
         with:
           project_id: ${{ secrets[format('GCP_PROJECT_ID_{0}', steps.map.outputs.ENV)] }}
 
-      # (선택) 디버그
-      - name: Verify gcloud auth
-        run: |
-          gcloud --version
-          echo "ACTIVE ACCOUNT:" && gcloud auth list --filter=status:ACTIVE --format='value(account)'
-          echo "PROJECT:" && gcloud config list --format='value(core.project)'
+      # ※ API 활성화는 콘솔에서 한 번만 해두세요.
+      # - name: Enable required APIs
+      #   run: |
+      #     gcloud services enable run.googleapis.com artifactregistry.googleapis.com cloudbuild.googleapis.com
 
-      # 필요한 API (권한 없으면 콘솔에서 선활성화, 또는 SA에 Service Usage Admin 부여)
-      - name: Enable required APIs
-        run: |
-          gcloud services enable run.googleapis.com artifactregistry.googleapis.com cloudbuild.googleapis.com
-
-      #Cloud Build config로 BUILD_MODE 등 전달 (substitutions는 한 줄!)
-      - name: Build & Push Docker image (via Cloud Build config)
+      # 3) Cloud Build로 이미지 빌드 & 푸시 (BUILD_MODE 전달)
+      - name: Build & Push Docker image (with BUILD_MODE)
         env:
           PROJECT_ID: ${{ secrets[format('GCP_PROJECT_ID_{0}', steps.map.outputs.ENV)] }}
-          REGION: ${{ secrets.GCP_REGION }}
-          AR_REPO: ${{ secrets.AR_REPO }}
-          ENV_LOWER: ${{ steps.map.outputs.ENV_LOWER }}
+          REGION:     ${{ secrets.GCP_REGION }}
+          AR_REPO:    ${{ secrets.AR_REPO }}
+          ENV_LOWER:  ${{ steps.map.outputs.ENV_LOWER }}
           BUILD_MODE: ${{ steps.map.outputs.BUILD_MODE }}
         run: |
           TAG=${GITHUB_SHA}
           gcloud builds submit frontend \
-            --config=frontend/cloudbuild.yaml \
-            --region="${REGION}" \
-            --substitutions=_PROJECT_ID="${PROJECT_ID}",_REGION="${REGION}",_AR_REPO="${AR_REPO}",_ENV_LOWER="${ENV_LOWER}",_TAG="${TAG}",_BUILD_MODE="${BUILD_MODE}"
+            --tag "${REGION}-docker.pkg.dev/${PROJECT_ID}/${AR_REPO}/frontend-${ENV_LOWER}:${TAG}" \
+            --region "${REGION}" \
+            -- \
+            --build-arg BUILD_MODE="${BUILD_MODE}"
 
+      # 4) Cloud Run 배포
       - name: Deploy to Cloud Run
         env:
           PROJECT_ID: ${{ secrets[format('GCP_PROJECT_ID_{0}', steps.map.outputs.ENV)] }}
-          REGION: ${{ secrets.GCP_REGION }}
-          AR_REPO: ${{ secrets.AR_REPO }}
-          ENV_LOWER: ${{ steps.map.outputs.ENV_LOWER }}
+          REGION:     ${{ secrets.GCP_REGION }}
+          AR_REPO:    ${{ secrets.AR_REPO }}
+          ENV_LOWER:  ${{ steps.map.outputs.ENV_LOWER }}
+          RUNTIME_SA: ${{ secrets[format('RUNTIME_SA_{0}', steps.map.outputs.ENV)] }}
         run: |
           TAG=${GITHUB_SHA}
           IMAGE="${REGION}-docker.pkg.dev/${PROJECT_ID}/${AR_REPO}/frontend-${ENV_LOWER}:${TAG}"
           SERVICE="frontend-${ENV_LOWER}"
+
           gcloud run deploy "${SERVICE}" \
             --image="${IMAGE}" \
-            --region "${REGION}" \
-            --platform managed \
+            --region="${REGION}" \
+            --platform=managed \
+            --port=8080 \
             --allow-unauthenticated \
-            --port 8080 \
+            --service-account="${RUNTIME_SA}" \
             --quiet
