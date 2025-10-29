@@ -64,7 +64,7 @@ jobs:
             artifactregistry.googleapis.com \
             cloudbuild.googleapis.com
 
-      # ⬇️ Cloud Build config로 BUILD_MODE 등 전달
+      #Cloud Build config로 BUILD_MODE 등 전달
       - name: Build & Push Docker image (via Cloud Build config)
         env:
           PROJECT_ID: ${{ secrets[format('GCP_PROJECT_ID_{0}', steps.map.outputs.ENV)] }}

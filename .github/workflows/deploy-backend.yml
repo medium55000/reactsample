@@ -51,12 +51,20 @@ jobs:
           project_id: ${{ secrets[format('GCP_PROJECT_ID_{0}', steps.map.outputs.ENV)] }}
           install_components: "beta"
 
+<<<<<<< HEAD
       # (선택) 인증/프로젝트 확인
       - name: Verify gcloud auth
         run: |
           gcloud --version
           echo "ACTIVE ACCOUNT:" && gcloud auth list --filter=status:ACTIVE --format='value(account)'
           echo "PROJECT:" && gcloud config list --format='value(core.project)'
+=======
+      # - name: Activate service account
+      #   run: |
+      #     gcloud auth activate-service-account --key-file="$GOOGLE_APPLICATION_CREDENTIALS"
+      #     gcloud config set account "$(gcloud auth list --format='value(account)' --filter='status:ACTIVE')"
+      #     gcloud config set project "${{ secrets[format('GCP_PROJECT_ID_{0}', steps.map.outputs.ENV)] }}"
+>>>>>>> cbd04fb (ci: remove manual SA activation; rely on setup-gcloud)
 
       # 필요한 API 활성화(권한 없으면 콘솔에서 선활성화하거나 SA에 Service Usage Admin 부여)
       - name: Enable required APIs
