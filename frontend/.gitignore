@@ -1,4 +1,4 @@
-# Logs
+# === Logs ===
 logs
 *.log
 npm-debug.log*
@@ -7,12 +7,13 @@ yarn-error.log*
 pnpm-debug.log*
 lerna-debug.log*
 
+# === Build artifacts ===
 node_modules
 dist
 dist-ssr
 *.local
 
-# Editor directories and files
+# === Editor ===
 .vscode/*
 !.vscode/extensions.json
 .idea
@@ -22,3 +23,8 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# === Cloud Build 주의 ===
+# - gcloud builds submit은 .gcloudignore를 우선 사용 (없으면 .gitignore를 기본 반영)
+# - Dockerfile, cloudbuild.yaml, src, public 이 업로드에서 빠지지 않도록 .gcloudignore로 확정 제어 권장
+#   -> frontend/.gcloudignore 파일을 아래처럼 추가하세요 (아래 3번 참고)
