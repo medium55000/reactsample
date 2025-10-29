@@ -1,6 +1,7 @@
 name: Deploy Backend (dev/test/prod)
 
 on:
+  workflow_dispatch: {} 
   push:
     branches: [ "dev", "test", "main" ]
     paths:
