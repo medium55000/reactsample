@@ -101,8 +101,4 @@ jobs:
             --platform managed \
             --allow-unauthenticated \
             --port 8080 \
-<<<<<<< HEAD
             --quiet
-=======
-            --quiet
->>>>>>> 3e48b96 (ci(backend): stable auth flow, set NODE_ENV, tune run resources)

@@ -14,7 +14,8 @@ steps:
         "build",
         "-t",
         "$_REGION-docker.pkg.dev/$_PROJECT_ID/$_AR_REPO/frontend-$_ENV_LOWER:$_TAG",
-        "--build-arg","BUILD_MODE=$_BUILD_MODE",
+        "--build-arg",
+        "BUILD_MODE=$_BUILD_MODE",
         ".",
       ]
 
