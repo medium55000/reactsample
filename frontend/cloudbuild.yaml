@@ -1,0 +1,23 @@
+# frontend/cloudbuild.yaml
+substitutions:
+  _REGION: us-west2
+  _PROJECT_ID: ""
+  _AR_REPO: reactsample-repo
+  _ENV_LOWER: dev
+  _TAG: latest
+  _BUILD_MODE: production
+
+steps:
+  - name: "gcr.io/cloud-builders/docker"
+    args:
+      [
+        "build",
+        "-t",
+        "$_REGION-docker.pkg.dev/$_PROJECT_ID/$_AR_REPO/frontend-$_ENV_LOWER:$_TAG",
+        "--build-arg",
+        "BUILD_MODE=$_BUILD_MODE",
+        ".",
+      ]
+
+images:
+  - "$_REGION-docker.pkg.dev/$_PROJECT_ID/$_AR_REPO/frontend-$_ENV_LOWER:$_TAG"

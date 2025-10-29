@@ -52,12 +52,16 @@ jobs:
           install_components: "beta"
 
 <<<<<<< HEAD
+<<<<<<< HEAD
+=======
+>>>>>>> 3e48b96 (ci(backend): stable auth flow, set NODE_ENV, tune run resources)
       # (선택) 인증/프로젝트 확인
       - name: Verify gcloud auth
         run: |
           gcloud --version
           echo "ACTIVE ACCOUNT:" && gcloud auth list --filter=status:ACTIVE --format='value(account)'
           echo "PROJECT:" && gcloud config list --format='value(core.project)'
+<<<<<<< HEAD
 =======
       # - name: Activate service account
       #   run: |
@@ -65,6 +69,8 @@ jobs:
       #     gcloud config set account "$(gcloud auth list --format='value(account)' --filter='status:ACTIVE')"
       #     gcloud config set project "${{ secrets[format('GCP_PROJECT_ID_{0}', steps.map.outputs.ENV)] }}"
 >>>>>>> cbd04fb (ci: remove manual SA activation; rely on setup-gcloud)
+=======
+>>>>>>> 3e48b96 (ci(backend): stable auth flow, set NODE_ENV, tune run resources)
 
       # 필요한 API 활성화(권한 없으면 콘솔에서 선활성화하거나 SA에 Service Usage Admin 부여)
       - name: Enable required APIs
@@ -114,4 +120,8 @@ jobs:
             --concurrency 80 \
             --min-instances 0 --max-instances 3 \
             --set-env-vars PORT=8080,MONGODB_URI="${MONGODB_URI}",NODE_ENV="${NODE_ENV}" \
+<<<<<<< HEAD
             --quiet
+=======
+            --quiet
+>>>>>>> 3e48b96 (ci(backend): stable auth flow, set NODE_ENV, tune run resources)
