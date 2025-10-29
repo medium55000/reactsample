@@ -1,4 +1,3 @@
-# frontend/.gcloudignore
 # ===== 반드시 포함 =====
 Dockerfile
 cloudbuild.yaml
