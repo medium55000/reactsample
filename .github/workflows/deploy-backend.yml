@@ -38,7 +38,7 @@ jobs:
             echo "NODE_ENV=production" >> $GITHUB_OUTPUT
           fi
 
-      # 1) GCP 인증 (시크릿에 '서비스계정 JSON 전체'가 들어있어야 함)
+      # 1) GCP 인증
       - name: Auth to Google Cloud
         uses: google-github-actions/auth@v2
         with:
@@ -51,23 +51,19 @@ jobs:
           project_id: ${{ secrets[format('GCP_PROJECT_ID_{0}', steps.map.outputs.ENV)] }}
           install_components: "beta"
 
-      # (선택) 인증/프로젝트 확인
+      # (선택) 인증 확인
       - name: Verify gcloud auth
         run: |
           gcloud --version
           echo "ACTIVE ACCOUNT:" && gcloud auth list --filter=status:ACTIVE --format='value(account)'
           echo "PROJECT:" && gcloud config list --format='value(core.project)'
 
-      # 필요한 API 활성화(권한 없으면 콘솔에서 선활성화하거나 SA에 Service Usage Admin 부여)
+      # 필요한 API (권한 없으면 콘솔에서 선활성화 또는 SA에 Service Usage Admin 부여)
       - name: Enable required APIs
         run: |
-          gcloud services enable \
-            run.googleapis.com \
-            artifactregistry.googleapis.com \
-            cloudbuild.googleapis.com \
-            iam.googleapis.com
+          gcloud services enable run.googleapis.com artifactregistry.googleapis.com cloudbuild.googleapis.com iam.googleapis.com
 
-      # 3) Cloud Build로 Docker 이미지 빌드 & Artifact Registry로 푸시
+      #3) 백엔드 Docker 이미지 빌드 & 푸시 (Cloud Build 설정파일/치환값 X)
       - name: Build & Push Docker image
         env:
           PROJECT_ID: ${{ secrets[format('GCP_PROJECT_ID_{0}', steps.map.outputs.ENV)] }}
@@ -84,8 +80,8 @@ jobs:
       - name: Deploy to Cloud Run
         env:
           PROJECT_ID: ${{ secrets[format('GCP_PROJECT_ID_{0}', steps.map.outputs.ENV)] }}
-          REGION: ${{ secrets.GCP_REGION }}
-          AR_REPO: ${{ secrets.AR_REPO }}
+          REGION: ${{ secrets[GCP_REGION] }}
+          AR_REPO: ${{ secrets[AR_REPO] }}
           ENV_LOWER: ${{ steps.map.outputs.ENV_LOWER }}
           RUNTIME_SA: ${{ secrets[format('RUNTIME_SA_{0}', steps.map.outputs.ENV)] }}
           MONGODB_URI: ${{ secrets[format('MONGODB_URI_{0}', steps.map.outputs.ENV)] }}
