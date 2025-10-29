@@ -1,0 +1,91 @@
+name: Deploy Backend (dev/test/prod)
+
+on:
+  push:
+    branches: [ "dev", "test", "main" ]
+    paths:
+      - "backend/**"
+
+concurrency:
+  group: backend-${{ github.ref_name }}
+  cancel-in-progress: false
+
+jobs:
+  build-deploy:
+    runs-on: ubuntu-latest
+    env:
+      CLOUDSDK_CORE_DISABLE_PROMPTS: "1"
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Map branch to environment
+        id: map
+        run: |
+          if [ "${GITHUB_REF_NAME}" = "dev" ]; then
+            echo "ENV=DEV" >> $GITHUB_OUTPUT
+            echo "ENV_LOWER=dev" >> $GITHUB_OUTPUT
+          elif [ "${GITHUB_REF_NAME}" = "test" ]; then
+            echo "ENV=TEST" >> $GITHUB_OUTPUT
+            echo "ENV_LOWER=test" >> $GITHUB_OUTPUT
+          else
+            echo "ENV=PROD" >> $GITHUB_OUTPUT
+            echo "ENV_LOWER=prod" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Setup gcloud
+        uses: google-github-actions/setup-gcloud@v2
+        with:
+          project_id: ${{ secrets[format('GCP_PROJECT_ID_{0}', steps.map.outputs.ENV)] }}
+          service_account_key: ${{ secrets[format('GCP_SA_KEY_{0}', steps.map.outputs.ENV)] }}
+          export_default_credentials: true
+
+      - name: Activate service account
+        run: |
+          gcloud auth activate-service-account --key-file="$GOOGLE_APPLICATION_CREDENTIALS"
+          gcloud config set account "$(gcloud auth list --format='value(account)' --filter='status:ACTIVE')"
+          gcloud config set project "${{ secrets[format('GCP_PROJECT_ID_{0}', steps.map.outputs.ENV)] }}"
+
+      - name: Enable required APIs
+        run: |
+          gcloud services enable \
+            run.googleapis.com \
+            artifactregistry.googleapis.com \
+            cloudbuild.googleapis.com \
+            iam.googleapis.com
+
+      - name: Build & Push Docker image
+        env:
+          PROJECT_ID: ${{ secrets[format('GCP_PROJECT_ID_{0}', steps.map.outputs.ENV)] }}
+          REGION: ${{ secrets.GCP_REGION }}
+          AR_REPO: ${{ secrets.AR_REPO }}
+          ENV_LOWER: ${{ steps.map.outputs.ENV_LOWER }}
+        run: |
+          TAG=${GITHUB_SHA}
+          gcloud builds submit backend \
+            --tag "${REGION}-docker.pkg.dev/${PROJECT_ID}/${AR_REPO}/backend-${ENV_LOWER}:${TAG}" \
+            --region="${REGION}"
+
+      - name: Deploy to Cloud Run
+        env:
+          PROJECT_ID: ${{ secrets[format('GCP_PROJECT_ID_{0}', steps.map.outputs.ENV)] }}
+          REGION: ${{ secrets.GCP_REGION }}
+          AR_REPO: ${{ secrets.AR_REPO }}
+          ENV_LOWER: ${{ steps.map.outputs.ENV_LOWER }}
+          RUNTIME_SA: ${{ secrets[format('RUNTIME_SA_{0}', steps.map.outputs.ENV)] }}
+          MONGODB_URI: ${{ secrets[format('MONGODB_URI_{0}', steps.map.outputs.ENV)] }}
+        run: |
+          TAG=${GITHUB_SHA}
+          IMAGE="${REGION}-docker.pkg.dev/${PROJECT_ID}/${AR_REPO}/backend-${ENV_LOWER}:${TAG}"
+          SERVICE="api-${ENV_LOWER}"
+
+          gcloud run deploy "${SERVICE}" \
+            --image="${IMAGE}" \
+            --region="${REGION}" \
+            --platform=managed \
+            --allow-unauthenticated \
+            --port=8080 \
+            --service-account="${RUNTIME_SA}" \
+            --set-env-vars=PORT=8080 \
+            --set-env-vars=MONGODB_URI="${MONGODB_URI}"
