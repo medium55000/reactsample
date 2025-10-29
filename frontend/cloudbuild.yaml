@@ -1,19 +1,22 @@
 substitutions:
-  _REGION: us-west2
-  _PROJECT_ID: ""
-  _AR_REPO: reactsample-repo
-  _ENV_LOWER: dev
-  _TAG: latest
-  _BUILD_MODE: production
+  _PROJECT_ID: "SET_BY_WORKFLOW"
+  _REGION: "us-west2"
+  _AR_REPO: "reactsample-repo"
+  _ENV_LOWER: "dev"
+  _TAG: "local"
+  _BUILD_MODE: "production"
 
 steps:
   - name: "gcr.io/cloud-builders/docker"
-    args: [
-      "build",
-      "-t","$_REGION-docker.pkg.dev/$_PROJECT_ID/$_AR_REPO/frontend-$_ENV_LOWER:$_TAG",
-      "--build-arg","BUILD_MODE=$_BUILD_MODE",
-      "."
-    ]
+    id: "Build image with BUILD_MODE"
+    args:
+      - "build"
+      - "-t"
+      - "${_REGION}-docker.pkg.dev/${_PROJECT_ID}/${_AR_REPO}/frontend-${_ENV_LOWER}:${_TAG}"
+      - "--build-arg"
+      - "BUILD_MODE=${_BUILD_MODE}"
+      - "."
+    dir: "frontend"
 
 images:
-  - "$_REGION-docker.pkg.dev/$_PROJECT_ID/$_AR_REPO/frontend-$_ENV_LOWER:$_TAG"
+  - "${_REGION}-docker.pkg.dev/${_PROJECT_ID}/${_AR_REPO}/frontend-${_ENV_LOWER}:${_TAG}"
