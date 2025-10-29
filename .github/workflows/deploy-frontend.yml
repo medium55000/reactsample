@@ -5,6 +5,7 @@ on:
     branches: ["dev", "test", "main"]
     paths:
       - "frontend/**"
+      - ".github/workflows/deploy-frontend.yml"  # ← 추가
   workflow_dispatch: {}
 
 concurrency:
@@ -97,7 +98,7 @@ jobs:
           fi
           echo "Operation name: ${OP_NAME}"
 
-          # ✅ operation name → 마지막 토큰이 BUILD_ID
+          #operation name → 마지막 토큰이 BUILD_ID
           BUILD_ID="${OP_NAME##*/}"
 
           if [[ -z "${BUILD_ID:-}" ]]; then
