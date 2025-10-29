@@ -1,0 +1,10 @@
+name: Smoke
+
+on:
+  workflow_dispatch: {}   # 수동 실행 버튼
+
+jobs:
+  echo:
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "Actions OK on ${{ github.ref }} at ${{ github.run_id }}"
