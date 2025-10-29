@@ -42,11 +42,11 @@ jobs:
           service_account_key: ${{ secrets[format('GCP_SA_KEY_{0}', steps.map.outputs.ENV)] }}
           export_default_credentials: true
 
-      - name: Activate service account
-        run: |
-          gcloud auth activate-service-account --key-file="$GOOGLE_APPLICATION_CREDENTIALS"
-          gcloud config set account "$(gcloud auth list --format='value(account)' --filter='status:ACTIVE')"
-          gcloud config set project "${{ secrets[format('GCP_PROJECT_ID_{0}', steps.map.outputs.ENV)] }}"
+      #- name: Activate service account
+      #  run: |
+      #    gcloud auth activate-service-account --key-file="$GOOGLE_APPLICATION_CREDENTIALS"
+      #    gcloud config set account "$(gcloud auth list --format='value(account)' --filter='status:ACTIVE')"
+      #    gcloud config set project "${{ secrets[format('GCP_PROJECT_ID_{0}', steps.map.outputs.ENV)] }}"
 
       - name: Enable required APIs
         run: |
