@@ -1,0 +1,18 @@
+# frontend/.gcloudignore
+
+# 반드시 포함
+Dockerfile
+cloudbuild.yaml
+package.json
+package-lock.json
+vite.config.*
+src/**
+public/**
+
+# 제외
+node_modules/
+dist/
+*.log
+.vscode/
+.idea/
+.DS_Store

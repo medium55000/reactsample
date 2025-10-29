@@ -1,3 +1,4 @@
+# frontend/cloudbuild.yaml
 substitutions:
   _PROJECT_ID: "SET_BY_WORKFLOW"
   _REGION: "us-west2"
@@ -17,6 +18,7 @@ steps:
       - "BUILD_MODE=${_BUILD_MODE}"
       - "."
     dir: "frontend"
+    args: ["build", "-t", "...", "--build-arg", "BUILD_MODE=...", "."]
 
 images:
   - "${_REGION}-docker.pkg.dev/${_PROJECT_ID}/${_AR_REPO}/frontend-${_ENV_LOWER}:${_TAG}"
