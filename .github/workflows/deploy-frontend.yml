@@ -61,7 +61,7 @@ jobs:
         run: |
           gcloud services enable run.googleapis.com artifactregistry.googleapis.com cloudbuild.googleapis.com
 
-      #Cloud Build config + substitutions (한 줄 인자!)
+      # Cloud Build config + substitutions (한 줄 인자!)
       - name: Build & Push Docker image (via Cloud Build config)
         env:
           PROJECT_ID: ${{ secrets[format('GCP_PROJECT_ID_{0}', steps.map.outputs.ENV)] }}
