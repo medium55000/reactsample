@@ -1,11 +1,12 @@
 name: Deploy Backend (dev/test/prod)
 
 on:
-  workflow_dispatch: {}
   push:
     branches: ["dev", "test", "main"]
     paths:
       - "backend/**"
+      - ".github/workflows/deploy-backend.yml"
+  workflow_dispatch: {}
 
 concurrency:
   group: backend-${{ github.ref_name }}
@@ -21,76 +22,98 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Map branch to environment
+      - name: Map branch to env
         id: map
+        shell: bash
         run: |
-          if [ "${GITHUB_REF_NAME}" = "dev" ]; then
-            echo "ENV=DEV" >> $GITHUB_OUTPUT
-            echo "ENV_LOWER=dev" >> $GITHUB_OUTPUT
-            echo "NODE_ENV=development" >> $GITHUB_OUTPUT
-          elif [ "${GITHUB_REF_NAME}" = "test" ]; then
-            echo "ENV=TEST" >> $GITHUB_OUTPUT
-            echo "ENV_LOWER=test" >> $GITHUB_OUTPUT
-            echo "NODE_ENV=test" >> $GITHUB_OUTPUT
-          else
-            echo "ENV=PROD" >> $GITHUB_OUTPUT
-            echo "ENV_LOWER=prod" >> $GITHUB_OUTPUT
-            echo "NODE_ENV=production" >> $GITHUB_OUTPUT
-          fi
+          case "${GITHUB_REF_NAME}" in
+            dev)
+              echo "ENV=DEV"               >> "$GITHUB_OUTPUT"
+              echo "ENV_LOWER=dev"         >> "$GITHUB_OUTPUT"
+              echo "NODE_ENV=development"  >> "$GITHUB_OUTPUT"
+              ;;
+            test)
+              echo "ENV=TEST"              >> "$GITHUB_OUTPUT"
+              echo "ENV_LOWER=test"        >> "$GITHUB_OUTPUT"
+              echo "NODE_ENV=test"         >> "$GITHUB_OUTPUT"
+              ;;
+            *)
+              echo "ENV=PROD"              >> "$GITHUB_OUTPUT"
+              echo "ENV_LOWER=prod"        >> "$GITHUB_OUTPUT"
+              echo "NODE_ENV=production"   >> "$GITHUB_OUTPUT"
+              ;;
+          esac
 
-      # 1) GCP 인증
       - name: Auth to Google Cloud
         uses: google-github-actions/auth@v2
         with:
           credentials_json: ${{ secrets[format('GCP_SA_KEY_{0}', steps.map.outputs.ENV)] }}
 
-      # 2) gcloud 설치 + 프로젝트 설정
       - name: Setup gcloud
         uses: google-github-actions/setup-gcloud@v2
         with:
           project_id: ${{ secrets[format('GCP_PROJECT_ID_{0}', steps.map.outputs.ENV)] }}
           install_components: "beta"
 
-      # (선택) 인증 확인
-      - name: Verify gcloud auth
+      # ✅ 필수 시크릿 확인(누락 시 즉시 실패)
+      - name: Preflight | verify required secrets
+        env:
+          MONGODB_URI:  ${{ secrets[format('MONGODB_URI_{0}', steps.map.outputs.ENV)] }}
+          FRONTEND_URL: ${{ secrets[format('FRONTEND_URL_{0}', steps.map.outputs.ENV)] }}
+          RUNTIME_SA:   ${{ secrets[format('RUNTIME_SA_{0}', steps.map.outputs.ENV)] }}
+        shell: bash
         run: |
-          gcloud --version
-          echo "ACTIVE ACCOUNT:" && gcloud auth list --filter=status:ACTIVE --format='value(account)'
-          echo "PROJECT:" && gcloud config list --format='value(core.project)'
+          set -euo pipefail
+          for v in MONGODB_URI FRONTEND_URL RUNTIME_SA; do
+            if [ -z "${!v:-}" ]; then
+              echo "Required secret $v is missing for this environment."
+              exit 1
+            fi
+          done
+          echo "✓ All required secrets present."
 
-      # 필요한 API (권한 없으면 콘솔에서 선활성화 또는 SA에 Service Usage Admin 부여)
-      - name: Enable required APIs
-        run: |
-          gcloud services enable run.googleapis.com artifactregistry.googleapis.com cloudbuild.googleapis.com iam.googleapis.com
-
-      #3) 백엔드 Docker 이미지 빌드 & 푸시 (Cloud Build 설정파일/치환값 X)
-      - name: Build & Push Docker image
+      # 3) Build & Push.
+      - name: Build & Push image
         env:
           PROJECT_ID: ${{ secrets[format('GCP_PROJECT_ID_{0}', steps.map.outputs.ENV)] }}
-          REGION: ${{ secrets.GCP_REGION }}
-          AR_REPO: ${{ secrets.AR_REPO }}
-          ENV_LOWER: ${{ steps.map.outputs.ENV_LOWER }}
+          REGION:     ${{ secrets.GCP_REGION }}
+          AR_REPO:    ${{ secrets.AR_REPO }}
+          ENV_LOWER:  ${{ steps.map.outputs.ENV_LOWER }}
+        shell: bash
         run: |
-          TAG=${GITHUB_SHA}
+          set -euo pipefail
+          TAG="${GITHUB_SHA}"
           gcloud builds submit backend \
             --tag "${REGION}-docker.pkg.dev/${PROJECT_ID}/${AR_REPO}/backend-${ENV_LOWER}:${TAG}" \
             --region "${REGION}"
 
-      # 4) Cloud Run 배포
-      - name: Deploy to Cloud Run
+      # 4) Deploy (env-vars 파일 방식으로 안전하게 전달)
+      - name: Deploy to Cloud Run (backend)
         env:
-          PROJECT_ID: ${{ secrets[format('GCP_PROJECT_ID_{0}', steps.map.outputs.ENV)] }}
-          REGION: ${{ secrets[GCP_REGION] }}
-          AR_REPO: ${{ secrets[AR_REPO] }}
-          ENV_LOWER: ${{ steps.map.outputs.ENV_LOWER }}
-          RUNTIME_SA: ${{ secrets[format('RUNTIME_SA_{0}', steps.map.outputs.ENV)] }}
+          PROJECT_ID:  ${{ secrets[format('GCP_PROJECT_ID_{0}', steps.map.outputs.ENV)] }}
+          REGION:      ${{ secrets.GCP_REGION }}
+          AR_REPO:     ${{ secrets.AR_REPO }}
+          ENV_LOWER:   ${{ steps.map.outputs.ENV_LOWER }}
+          RUNTIME_SA:  ${{ secrets[format('RUNTIME_SA_{0}', steps.map.outputs.ENV)] }}
           MONGODB_URI: ${{ secrets[format('MONGODB_URI_{0}', steps.map.outputs.ENV)] }}
-          NODE_ENV: ${{ steps.map.outputs.NODE_ENV }}
+          NODE_ENV:    ${{ steps.map.outputs.NODE_ENV }}
+          CORS_ALLOWED_ORIGINS: ${{ secrets[format('FRONTEND_URL_{0}', steps.map.outputs.ENV)] }}
+        shell: bash
         run: |
-          TAG=${GITHUB_SHA}
-          IMAGE="${REGION}-docker.pkg.dev/${PROJECT_ID}/${AR_REPO}/backend-${ENV_LOWER}:${TAG}"
-          SERVICE="api-${ENV_LOWER}"
+          set -euo pipefail
 
+          TAG="${GITHUB_SHA}"
+          IMAGE="${REGION}-docker.pkg.dev/${PROJECT_ID}/${AR_REPO}/backend-${ENV_LOWER}:${TAG}"
+          SERVICE="backend-${ENV_LOWER}"
+
+          # ⚠️ heredoc 토큰에 따옴표를 붙이지 말고, 키는 맨 앞 열에 둡니다.
+          cat > envvars.yaml <<EOF
+          MONGODB_URI: "${MONGODB_URI}"
+          NODE_ENV: "${NODE_ENV}"
+          CORS_ALLOWED_ORIGINS: "${CORS_ALLOWED_ORIGINS}"
+          EOF
+
+          echo "Deploying ${SERVICE} with image ${IMAGE}"
           gcloud run deploy "${SERVICE}" \
             --image "${IMAGE}" \
             --region "${REGION}" \
@@ -101,5 +124,6 @@ jobs:
             --cpu 1 --memory 512Mi \
             --concurrency 80 \
             --min-instances 0 --max-instances 3 \
-            --set-env-vars PORT=8080,MONGODB_URI="${MONGODB_URI}",NODE_ENV="${NODE_ENV}" \
+            --timeout 300 \
+            --env-vars-file envvars.yaml \
             --quiet

@@ -1,9 +1,4 @@
 node_modules
-dist
-dist-ssr
-*.local
-.DS_Store
-build
 npm-debug.log*
 yarn-*.log*
 pnpm-debug.log*
@@ -13,6 +8,8 @@ Dockerfile
 .dockerignore
 .env
 .env.*
+coverage
+dist
+build
 .vscode
 .idea
-
