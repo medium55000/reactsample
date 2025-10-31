@@ -64,20 +64,20 @@ jobs:
         run: |
           gcloud services enable run.googleapis.com artifactregistry.googleapis.com cloudbuild.googleapis.com iam.googleapis.com
 
-      #3) 백엔드 Docker 이미지 빌드 & 푸시
+      # 3) 백엔드 Docker 이미지 빌드 & 푸시 (변경 없음)
       - name: Build & Push Docker image
         env:
           PROJECT_ID: ${{ secrets[format('GCP_PROJECT_ID_{0}', steps.map.outputs.ENV)] }}
-          REGION: ${{ secrets.GCP_REGION }}
-          AR_REPO: ${{ secrets.AR_REPO }}
-          ENV_LOWER: ${{ steps.map.outputs.ENV_LOWER }}
+          REGION:     ${{ secrets.GCP_REGION }}
+          AR_REPO:    ${{ secrets.AR_REPO }}
+          ENV_LOWER:  ${{ steps.map.outputs.ENV_LOWER }}
         run: |
           TAG=${GITHUB_SHA}
           gcloud builds submit backend \
             --tag "${REGION}-docker.pkg.dev/${PROJECT_ID}/${AR_REPO}/backend-${ENV_LOWER}:${TAG}" \
             --region "${REGION}"
 
-      # 4) Cloud Run 배포.
+      # 4) Cloud Run 배포 (여기만 변경)
       - name: Deploy to Cloud Run
         env:
           PROJECT_ID:  ${{ secrets[format('GCP_PROJECT_ID_{0}', steps.map.outputs.ENV)] }}
@@ -88,9 +88,10 @@ jobs:
           MONGODB_URI: ${{ secrets[format('MONGODB_URI_{0}', steps.map.outputs.ENV)] }}
           NODE_ENV:    ${{ steps.map.outputs.NODE_ENV }}
         run: |
+          set -euo pipefail
           TAG=${GITHUB_SHA}
           IMAGE="${REGION}-docker.pkg.dev/${PROJECT_ID}/${AR_REPO}/backend-${ENV_LOWER}:${TAG}"
-          SERVICE="api-${ENV_LOWER}"
+          SERVICE="backend-${ENV_LOWER}"   # <<<< 변경 포인트
 
           gcloud run deploy "${SERVICE}" \
             --image "${IMAGE}" \
@@ -103,4 +104,4 @@ jobs:
             --concurrency 80 \
             --min-instances 0 --max-instances 3 \
             --set-env-vars MONGODB_URI="${MONGODB_URI}",NODE_ENV="${NODE_ENV}" \
-            --quiet          
+            --quiet
