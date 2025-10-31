@@ -1,170 +1,85 @@
-// backend/src/index.js
-import express from 'express';
-import cors from 'cors';
-import mongoose from 'mongoose';
-import dotenv from 'dotenv';
+import express from 'express'
+import cors from 'cors'
+import mongoose from 'mongoose'
+import dotenv from 'dotenv'
 
-/**
- * ✅ ENV 로딩 전략
- * - Cloud Run(환경변수 K_SERVICE가 존재)에서는 .env 파일을 읽지 않음
- * - 로컬 개발 시에만 .env.development 기본 로딩 (또는 ENV_PATH 지정)
- */
-const isCloudRun = !!process.env.K_SERVICE;
-if (!isCloudRun) {
-  dotenv.config({ path: process.env.ENV_PATH || '.env.development' });
-}
+dotenv.config({ path: process.env.ENV_PATH || '.env.development' })
 
-// ───────────────────────────────────────────────────────────────
-// 기본 설정
-// ───────────────────────────────────────────────────────────────
-const app = express();
-app.set('trust proxy', true); // Cloud Run/프록시 환경에서 client IP 등 신뢰
-app.use(express.json());
+const app = express()
+app.use(cors())
+app.use(express.json())
 
-/**
- * ✅ CORS 설정
- * - CORS_ALLOWED_ORIGINS="https://front-prod,...,http://localhost:5173" 처럼 콤마 구분
- * - 값이 비어 있으면(미설정) 전체 허용 (내부 API 등에서 쓰는 경우 편의)
- */
-const allowedOrigins = (process.env.CORS_ALLOWED_ORIGINS || '')
-  .split(',')
-  .map(s => s.trim())
-  .filter(Boolean);
-
-const corsOptions = {
-  origin(origin, cb) {
-    if (allowedOrigins.length === 0) return cb(null, true);       // 미설정이면 전부 허용
-    if (!origin) return cb(null, true);                            // 서버간 호출/포스트맨 등 Origin 없음 허용
-    if (allowedOrigins.includes(origin)) return cb(null, true);
-    return cb(new Error(`CORS blocked: ${origin}`));
-  },
-  credentials: true,
-  methods: ['GET','POST','PUT','PATCH','DELETE','OPTIONS'],
-  allowedHeaders: ['Content-Type','Authorization'],
-};
-
-app.use(cors(corsOptions));
-app.options('*', cors(corsOptions)); // Preflight
-
-// ───────────────────────────────────────────────────────────────
-// Mongo 연결
-// ───────────────────────────────────────────────────────────────
-const MONGODB_URI =
-  process.env.MONGODB_URI || 'mongodb://localhost:27017/sampledb';
-
+const MONGODB_URI = process.env.MONGODB_URI || ''
 if (!MONGODB_URI) {
-  console.error('❌ MONGODB_URI is not set');
-  process.exit(1);
+  console.warn('⚠️  MONGODB_URI is empty. API will run but DB endpoints will fail until set.')
 }
 
-// 쿼리 엄격 모드(권장)
-mongoose.set('strictQuery', true);
+mongoose.set('strictQuery', true)
 
-async function connectDB() {
+// ① 재시도 로직
+async function connectWithRetry(retry = 0) {
+  const maxDelay = 30000
+  const baseDelay = 1000
   try {
-    await mongoose.connect(MONGODB_URI, {
-      serverSelectionTimeoutMS: 10_000, // 10s 안에 클러스터 못 찾으면 실패
-      socketTimeoutMS: 45_000,          // 긴 쿼리 타임아웃
-      maxPoolSize: 10,                  // 기본 커넥션 풀
-    });
-    console.log('✅ Mongo connected');
+    await mongoose.connect(MONGODB_URI, { serverSelectionTimeoutMS: 8000 })
+    console.log('✅ Mongo connected')
   } catch (err) {
-    console.error('❌ Mongo connect error:', err?.message || err);
-    process.exit(1);
+    const delay = Math.min(baseDelay * (2 ** retry), maxDelay)
+    console.error(`❌ Mongo connect error: ${err?.message || err}. Retry in ${delay}ms`)
+    setTimeout(() => connectWithRetry(retry + 1), delay).unref()
   }
 }
 
-// ───────────────────────────────────────────────────────────────
-// 스키마/모델
-// ───────────────────────────────────────────────────────────────
+// --- 라우트 ---
+app.get('/', (_req, res) => res.status(200).send('OK'))         // 루트 헬스(Cloud Run 초기 체크용)
+app.get('/health', (_req, res) => res.json({ status: 'ok' }))
+app.get('/api/health', (_req, res) => res.json({ status: 'ok' }))
+
+// 간단한 Todo 모델/라우트 (있던 코드 유지)
 const TodoSchema = new mongoose.Schema(
-  {
-    title: { type: String, required: true },
-    done:  { type: Boolean, default: false },
-  },
+  { title: { type: String, required: true }, done: { type: Boolean, default: false } },
   { timestamps: true }
-);
+)
+const Todo = mongoose.models.Todo || mongoose.model('Todo', TodoSchema)
 
-const Todo = mongoose.models.Todo || mongoose.model('Todo', TodoSchema);
-
-// ───────────────────────────────────────────────────────────────
-// 라우트
-// ───────────────────────────────────────────────────────────────
-app.get('/', (_req, res) => {
-  res.json({ ok: true, service: process.env.K_SERVICE || 'local' });
-});
-
-app.get('/health', (_req, res) => {
-  res.json({
-    status: 'ok',
-    service: process.env.K_SERVICE || 'local',
-    revision: process.env.K_REVISION || null,
-    env: process.env.NODE_ENV || 'development',
-  });
-});
-
-app.get('/api/health', (_req, res) => {
-  res.json({
-    status: 'ok',
-    service: process.env.K_SERVICE || 'local',
-    revision: process.env.K_REVISION || null,
-    env: process.env.NODE_ENV || 'development',
-  });
-});
-
-app.get('/api/todos', async (_req, res, next) => {
+app.get('/api/todos', async (_req, res) => {
   try {
-    const items = await Todo.find().sort({ createdAt: -1 });
-    res.json(items);
+    const items = await Todo.find().sort({ createdAt: -1 })
+    res.json(items)
   } catch (e) {
-    next(e);
+    res.status(500).json({ message: 'DB not connected yet' })
   }
-});
+})
 
-app.post('/api/todos', async (req, res, next) => {
+app.post('/api/todos', async (req, res) => {
+  const { title, done } = req.body || {}
+  if (!title || typeof title !== 'string') {
+    return res.status(400).json({ message: 'title is required (string)' })
+  }
   try {
-    const { title, done } = req.body || {};
-    if (!title || typeof title !== 'string') {
-      return res.status(400).json({ message: 'title is required (string)' });
-    }
-    const todo = await Todo.create({ title, done: !!done });
-    res.status(201).json(todo);
+    const todo = await Todo.create({ title, done: !!done })
+    res.status(201).json(todo)
   } catch (e) {
-    next(e);
+    res.status(500).json({ message: 'DB not connected yet' })
   }
-});
+})
 
-// ───────────────────────────────────────────────────────────────
-// 에러 핸들러(최후)
-// ───────────────────────────────────────────────────────────────
-app.use((err, _req, res, _next) => {
-  console.error('❌ Error:', err?.message || err);
-  res.status(500).json({ message: 'Internal Server Error' });
-});
-
-// ───────────────────────────────────────────────────────────────
-// 서버 시작 (Cloud Run: PORT는 시스템이 주입 — 직접 세팅 금지)
-// ───────────────────────────────────────────────────────────────
-const PORT = Number(process.env.PORT) || 8080;
+const PORT = Number(process.env.PORT) || 8080
 
 async function start() {
-  await connectDB();
+  // ② 서버를 먼저 리슨
   app.listen(PORT, '0.0.0.0', () => {
-    console.log(`🚀 API listening on :${PORT}`);
-  });
+    console.log(`🚀 API listening on :${PORT}`)
+  })
+  // ③ DB 연결은 백그라운드 재시작
+  if (MONGODB_URI) connectWithRetry()
 }
-start();
+start()
 
-// ───────────────────────────────────────────────────────────────
-// 종료 신호 처리
-// ───────────────────────────────────────────────────────────────
 async function shutdown() {
-  console.log('⏳ Graceful shutdown...');
-  await mongoose.connection.close().catch(() => {});
-  process.exit(0);
+  console.log('⏳ Graceful shutdown...')
+  await mongoose.connection.close().catch(() => {})
+  process.exit(0)
 }
-process.on('SIGTERM', shutdown);
-process.on('SIGINT', shutdown);
-
-// (테스트용) 앱 export
-export default app;
+process.on('SIGTERM', shutdown)
+process.on('SIGINT', shutdown)
