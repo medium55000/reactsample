@@ -18,7 +18,7 @@ steps:
       - BUILD_MODE=${_BUILD_MODE}
       - -f
       - Dockerfile          # ← 현재 디렉터리 기준
-      - .                   # ← 현재 디렉터리를 컨텍스트로
+      - .                   # ← 현재 디렉터리를 컨텍스트로.
 
   - name: gcr.io/cloud-builders/docker
     id: Push image
