@@ -2,6 +2,7 @@ import express from 'express'
 import cors from 'cors'
 import mongoose from 'mongoose'
 import dotenv from 'dotenv'
+import todosRouter from './routes/todos.js';
 
 dotenv.config({ path: process.env.ENV_PATH || '.env.development' })
 
@@ -16,7 +17,7 @@ if (!MONGODB_URI) {
 
 mongoose.set('strictQuery', true)
 
-// ① 재시도 로직
+// ① 재시도 로직.
 async function connectWithRetry(retry = 0) {
   const maxDelay = 30000
   const baseDelay = 1000
@@ -32,8 +33,11 @@ async function connectWithRetry(retry = 0) {
 
 // --- 라우트 ---
 app.get('/', (_req, res) => res.status(200).send('OK'))         // 루트 헬스(Cloud Run 초기 체크용)
+// CORS/JSON 미들웨어는 이미 있으니 그대로 사용
 app.get('/health', (_req, res) => res.json({ status: 'ok' }))
 app.get('/api/health', (_req, res) => res.json({ status: 'ok' }))
+// ✅ 여기 추가
+app.use('/api/todos', todosRouter);
 
 // 간단한 Todo 모델/라우트 (있던 코드 유지).
 const TodoSchema = new mongoose.Schema(
