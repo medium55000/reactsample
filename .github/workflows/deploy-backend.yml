@@ -38,7 +38,7 @@ jobs:
             echo "NODE_ENV=production" >> $GITHUB_OUTPUT
           fi
 
-      # 1) GCP 인증.
+      # 1) GCP 인증
       - name: Auth to Google Cloud
         uses: google-github-actions/auth@v2
         with:
@@ -58,12 +58,12 @@ jobs:
           echo "ACTIVE ACCOUNT:" && gcloud auth list --filter=status:ACTIVE --format='value(account)'
           echo "PROJECT:" && gcloud config list --format='value(core.project)'
 
-      # 필요한 API (권한 없으면 콘솔에서 선활성화 또는 SA에 Service Usage Admin 부여)
+      # 필요한 API
       - name: Enable required APIs
         run: |
           gcloud services enable run.googleapis.com artifactregistry.googleapis.com cloudbuild.googleapis.com iam.googleapis.com
 
-      #3) 백엔드 Docker 이미지 빌드 & 푸시 (Cloud Build 설정파일/치환값 X)
+      #3) 백엔드 Docker 이미지 빌드 & 푸시
       - name: Build & Push Docker image
         env:
           PROJECT_ID: ${{ secrets[format('GCP_PROJECT_ID_{0}', steps.map.outputs.ENV)] }}
@@ -79,13 +79,13 @@ jobs:
       # 4) Cloud Run 배포
       - name: Deploy to Cloud Run
         env:
-          PROJECT_ID: ${{ secrets[format('GCP_PROJECT_ID_{0}', steps.map.outputs.ENV)] }}
-          REGION: ${{ secrets[GCP_REGION] }}
-          AR_REPO: ${{ secrets[AR_REPO] }}
-          ENV_LOWER: ${{ steps.map.outputs.ENV_LOWER }}
-          RUNTIME_SA: ${{ secrets[format('RUNTIME_SA_{0}', steps.map.outputs.ENV)] }}
+          PROJECT_ID:  ${{ secrets[format('GCP_PROJECT_ID_{0}', steps.map.outputs.ENV)] }}
+          REGION:      ${{ secrets.GCP_REGION }}
+          AR_REPO:     ${{ secrets.AR_REPO }}
+          ENV_LOWER:   ${{ steps.map.outputs.ENV_LOWER }}
+          RUNTIME_SA:  ${{ secrets[format('RUNTIME_SA_{0}', steps.map.outputs.ENV)] }}
           MONGODB_URI: ${{ secrets[format('MONGODB_URI_{0}', steps.map.outputs.ENV)] }}
-          NODE_ENV: ${{ steps.map.outputs.NODE_ENV }}
+          NODE_ENV:    ${{ steps.map.outputs.NODE_ENV }}
         run: |
           TAG=${GITHUB_SHA}
           IMAGE="${REGION}-docker.pkg.dev/${PROJECT_ID}/${AR_REPO}/backend-${ENV_LOWER}:${TAG}"

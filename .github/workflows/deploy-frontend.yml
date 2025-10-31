@@ -22,7 +22,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      # 브랜치 → 환경 매핑.
+      # 브랜치 → 환경 매핑
       - name: Map branch to environment
         id: map
         shell: bash
