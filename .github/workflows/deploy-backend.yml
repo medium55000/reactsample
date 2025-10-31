@@ -22,6 +22,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      # .github/workflows/deploy-backend.yml  (핵심 부분만)
       - name: Map branch to environment
         id: map
         run: |
@@ -87,11 +88,12 @@ jobs:
           RUNTIME_SA:  ${{ secrets[format('RUNTIME_SA_{0}', steps.map.outputs.ENV)] }}
           MONGODB_URI: ${{ secrets[format('MONGODB_URI_{0}', steps.map.outputs.ENV)] }}
           NODE_ENV:    ${{ steps.map.outputs.NODE_ENV }}
+          # (신규) CORS_ALLOWED_ORIGINS: 프런트 URL을 시크릿으로 넣어두면 좋습니다
+          CORS_ALLOWED_ORIGINS: ${{ secrets[format('FRONTEND_URL_{0}', steps.map.outputs.ENV)] }}
         run: |
-          set -euo pipefail
           TAG=${GITHUB_SHA}
           IMAGE="${REGION}-docker.pkg.dev/${PROJECT_ID}/${AR_REPO}/backend-${ENV_LOWER}:${TAG}"
-          SERVICE="backend-${ENV_LOWER}"   # <<<< 변경 포인트
+          SERVICE="backend-${ENV_LOWER}"
 
           gcloud run deploy "${SERVICE}" \
             --image "${IMAGE}" \
@@ -103,5 +105,5 @@ jobs:
             --cpu 1 --memory 512Mi \
             --concurrency 80 \
             --min-instances 0 --max-instances 3 \
-            --set-env-vars MONGODB_URI="${MONGODB_URI}",NODE_ENV="${NODE_ENV}" \
+            --set-env-vars MONGODB_URI="${MONGODB_URI}",NODE_ENV="${NODE_ENV}",CORS_ALLOWED_ORIGINS="${CORS_ALLOWED_ORIGINS}" \
             --quiet
