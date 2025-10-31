@@ -55,23 +55,24 @@ jobs:
           project_id: ${{ secrets[format('GCP_PROJECT_ID_{0}', steps.map.outputs.ENV)] }}
           install_components: "beta"
 
-      # 🔎 사전 점검: 필수 시크릿 존재 여부 체크 (누락 시 바로 실패해서 원인 파악 쉬움)
+      # ✅ 필수 시크릿 확인(누락 시 즉시 실패)
       - name: Preflight | verify required secrets
         env:
-          MONGODB_URI:           ${{ secrets[format('MONGODB_URI_{0}', steps.map.outputs.ENV)] }}
-          FRONTEND_URL:          ${{ secrets[format('FRONTEND_URL_{0}', steps.map.outputs.ENV)] }}
-          RUNTIME_SA:            ${{ secrets[format('RUNTIME_SA_{0}', steps.map.outputs.ENV)] }}
+          MONGODB_URI:  ${{ secrets[format('MONGODB_URI_{0}', steps.map.outputs.ENV)] }}
+          FRONTEND_URL: ${{ secrets[format('FRONTEND_URL_{0}', steps.map.outputs.ENV)] }}
+          RUNTIME_SA:   ${{ secrets[format('RUNTIME_SA_{0}', steps.map.outputs.ENV)] }}
         shell: bash
         run: |
           set -euo pipefail
           for v in MONGODB_URI FRONTEND_URL RUNTIME_SA; do
             if [ -z "${!v:-}" ]; then
-              echo "❌ Required secret $v is missing for this environment."
+              echo "Required secret $v is missing for this environment."
               exit 1
             fi
           done
           echo "✓ All required secrets present."
 
+      # 3) Build & Push
       - name: Build & Push image
         env:
           PROJECT_ID: ${{ secrets[format('GCP_PROJECT_ID_{0}', steps.map.outputs.ENV)] }}
@@ -82,11 +83,11 @@ jobs:
         run: |
           set -euo pipefail
           TAG="${GITHUB_SHA}"
-
           gcloud builds submit backend \
             --tag "${REGION}-docker.pkg.dev/${PROJECT_ID}/${AR_REPO}/backend-${ENV_LOWER}:${TAG}" \
             --region "${REGION}"
 
+      # 4) Deploy (env-vars 파일 방식으로 안전하게 전달)
       - name: Deploy to Cloud Run (backend)
         env:
           PROJECT_ID:  ${{ secrets[format('GCP_PROJECT_ID_{0}', steps.map.outputs.ENV)] }}
@@ -100,20 +101,29 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+
           TAG="${GITHUB_SHA}"
           IMAGE="${REGION}-docker.pkg.dev/${PROJECT_ID}/${AR_REPO}/backend-${ENV_LOWER}:${TAG}"
           SERVICE="backend-${ENV_LOWER}"
 
+          # ⚠️ heredoc 토큰에 따옴표를 붙이지 말고, 키는 맨 앞 열에 둡니다.
+          cat > envvars.yaml <<EOF
+          MONGODB_URI: "${MONGODB_URI}"
+          NODE_ENV: "${NODE_ENV}"
+          CORS_ALLOWED_ORIGINS: "${CORS_ALLOWED_ORIGINS}"
+          EOF
+
+          echo "Deploying ${SERVICE} with image ${IMAGE}"
           gcloud run deploy "${SERVICE}" \
-          --image "${IMAGE}" \
-          --region "${REGION}" \
-          --platform managed \
-          --allow-unauthenticated \
-          --port 8080 \
-          --service-account "${RUNTIME_SA}" \
-          --cpu 1 --memory 512Mi \
-          --concurrency 80 \
-          --min-instances 0 --max-instances 3 \
-          --timeout 300 \
-          --set-env-vars MONGODB_URI="${MONGODB_URI}",NODE_ENV="${NODE_ENV}",CORS_ALLOWED_ORIGINS="${CORS_ALLOWED_ORIGINS}" \
-          --quiet
+            --image "${IMAGE}" \
+            --region "${REGION}" \
+            --platform managed \
+            --allow-unauthenticated \
+            --port 8080 \
+            --service-account "${RUNTIME_SA}" \
+            --cpu 1 --memory 512Mi \
+            --concurrency 80 \
+            --min-instances 0 --max-instances 3 \
+            --timeout 300 \
+            --env-vars-file envvars.yaml \
+            --quiet
