@@ -101,5 +101,5 @@ jobs:
             --cpu 1 --memory 512Mi \
             --concurrency 80 \
             --min-instances 0 --max-instances 3 \
-            --set-env-vars PORT=8080,MONGODB_URI="${MONGODB_URI}",NODE_ENV="${NODE_ENV}" \
-            --quiet
+            --set-env-vars MONGODB_URI="${MONGODB_URI}",NODE_ENV="${NODE_ENV}" \
+            --quiet          
