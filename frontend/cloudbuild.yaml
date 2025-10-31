@@ -1,4 +1,3 @@
-# frontend/cloudbuild.yaml
 substitutions:
   _PROJECT_ID: ""
   _REGION: ""
@@ -6,6 +5,10 @@ substitutions:
   _ENV_LOWER: ""
   _TAG: ""
   _BUILD_MODE: "production"
+  _VITE_API_BASE_URL: ""
+  _VITE_SENTRY_DSN: ""
+  _VITE_ANALYTICS_TOKEN: ""
+  _VITE_PUBLIC_FLAG: ""
 
 steps:
   - name: gcr.io/cloud-builders/docker
@@ -16,15 +19,21 @@ steps:
       - ${_REGION}-docker.pkg.dev/${_PROJECT_ID}/${_AR_REPO}/frontend-${_ENV_LOWER}:${_TAG}
       - --build-arg
       - BUILD_MODE=${_BUILD_MODE}
+      - --build-arg
+      - VITE_API_BASE_URL=${_VITE_API_BASE_URL}
+      - --build-arg
+      - VITE_SENTRY_DSN=${_VITE_SENTRY_DSN}
+      - --build-arg
+      - VITE_ANALYTICS_TOKEN=${_VITE_ANALYTICS_TOKEN}
+      - --build-arg
+      - VITE_PUBLIC_FLAG=${_VITE_PUBLIC_FLAG}
       - -f
-      - Dockerfile          # ← 현재 디렉터리 기준
-      - .                   # ← 현재 디렉터리를 컨텍스트로.
+      - Dockerfile
+      - .
 
   - name: gcr.io/cloud-builders/docker
     id: Push image
-    args:
-      - push
-      - ${_REGION}-docker.pkg.dev/${_PROJECT_ID}/${_AR_REPO}/frontend-${_ENV_LOWER}:${_TAG}
+    args: ["push", "${_REGION}-docker.pkg.dev/${_PROJECT_ID}/${_AR_REPO}/frontend-${_ENV_LOWER}:${_TAG}"]
 
 images:
   - ${_REGION}-docker.pkg.dev/${_PROJECT_ID}/${_AR_REPO}/frontend-${_ENV_LOWER}:${_TAG}
