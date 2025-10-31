@@ -72,7 +72,7 @@ jobs:
           done
           echo "✓ All required secrets present."
 
-      # 3) Build & Push
+      # 3) Build & Push.
       - name: Build & Push image
         env:
           PROJECT_ID: ${{ secrets[format('GCP_PROJECT_ID_{0}', steps.map.outputs.ENV)] }}
