@@ -38,7 +38,7 @@ jobs:
             echo "NODE_ENV=production" >> $GITHUB_OUTPUT
           fi
 
-      # 1) GCP 인증
+      # 1) GCP 인증.
       - name: Auth to Google Cloud
         uses: google-github-actions/auth@v2
         with:
