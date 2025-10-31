@@ -72,6 +72,7 @@ jobs:
           done
           echo "✓ All required secrets present."
 
+      # 3) Build & Push
       - name: Build & Push image
         env:
           PROJECT_ID: ${{ secrets[format('GCP_PROJECT_ID_{0}', steps.map.outputs.ENV)] }}
@@ -82,42 +83,43 @@ jobs:
         run: |
           set -euo pipefail
           TAG="${GITHUB_SHA}"
-
           gcloud builds submit backend \
             --tag "${REGION}-docker.pkg.dev/${PROJECT_ID}/${AR_REPO}/backend-${ENV_LOWER}:${TAG}" \
             --region "${REGION}"
 
-          - name: Deploy to Cloud Run (backend)
-                  env:
-                    PROJECT_ID:  ${{ secrets[format('GCP_PROJECT_ID_{0}', steps.map.outputs.ENV)] }}
-                    REGION:      ${{ secrets.GCP_REGION }}
-                    AR_REPO:     ${{ secrets.AR_REPO }}
-                    ENV_LOWER:   ${{ steps.map.outputs.ENV_LOWER }}
-                    RUNTIME_SA:  ${{ secrets[format('RUNTIME_SA_{0}', steps.map.outputs.ENV)] }}
-                    MONGODB_URI: ${{ secrets[format('MONGODB_URI_{0}', steps.map.outputs.ENV)] }}
-                    NODE_ENV:    ${{ steps.map.outputs.NODE_ENV }}
-                    CORS_ALLOWED_ORIGINS: ${{ secrets[format('FRONTEND_URL_{0}', steps.map.outputs.ENV)] }}
-                  shell: bash
-                  run: |
-                    set -euo pipefail
+      # 4) Deploy
+      - name: Deploy to Cloud Run (backend)
+        env:
+          PROJECT_ID:  ${{ secrets[format('GCP_PROJECT_ID_{0}', steps.map.outputs.ENV)] }}
+          REGION:      ${{ secrets.GCP_REGION }}
+          AR_REPO:     ${{ secrets.AR_REPO }}
+          ENV_LOWER:   ${{ steps.map.outputs.ENV_LOWER }}
+          RUNTIME_SA:  ${{ secrets[format('RUNTIME_SA_{0}', steps.map.outputs.ENV)] }}
+          MONGODB_URI: ${{ secrets[format('MONGODB_URI_{0}', steps.map.outputs.ENV)] }}
+          NODE_ENV:    ${{ steps.map.outputs.NODE_ENV }}
+          # dev/test/prod 별 프런트 URL을 콤마로 합쳐둔 시크릿 (예: http://localhost:5173,https://frontend-dev-...)
+          CORS_ALLOWED_ORIGINS: ${{ secrets[format('FRONTEND_URL_{0}', steps.map.outputs.ENV)] }}
+        shell: bash
+        run: |
+          set -euo pipefail
 
-                    # 1) 콤마 이스케이프
-                    SAFE_CORS="$(printf '%s' "${CORS_ALLOWED_ORIGINS}" | sed 's/,/\\,/g')"
+          # 콤마 이스케이프 (gcloud --set-env-vars 에서 콤마는 특수문자)
+          SAFE_CORS="$(printf '%s' "${CORS_ALLOWED_ORIGINS}" | sed 's/,/\\,/g')"
 
-                    TAG="${GITHUB_SHA}"
-                    IMAGE="${REGION}-docker.pkg.dev/${PROJECT_ID}/${AR_REPO}/backend-${ENV_LOWER}:${TAG}"
-                    SERVICE="backend-${ENV_LOWER}"
+          TAG="${GITHUB_SHA}"
+          IMAGE="${REGION}-docker.pkg.dev/${PROJECT_ID}/${AR_REPO}/backend-${ENV_LOWER}:${TAG}"
+          SERVICE="backend-${ENV_LOWER}"
 
-                    gcloud run deploy "${SERVICE}" \
-                      --image "${IMAGE}" \
-                      --region "${REGION}" \
-                      --platform managed \
-                      --allow-unauthenticated \
-                      --port 8080 \
-                      --service-account "${RUNTIME_SA}" \
-                      --cpu 1 --memory 512Mi \
-                      --concurrency 80 \
-                      --min-instances 0 --max-instances 3 \
-                      --timeout 300 \
-                      --set-env-vars MONGODB_URI="${MONGODB_URI}",NODE_ENV="${NODE_ENV}",CORS_ALLOWED_ORIGINS="${SAFE_CORS}" \
-                      --quiet
+          gcloud run deploy "${SERVICE}" \
+            --image "${IMAGE}" \
+            --region "${REGION}" \
+            --platform managed \
+            --allow-unauthenticated \
+            --port 8080 \
+            --service-account "${RUNTIME_SA}" \
+            --cpu 1 --memory 512Mi \
+            --concurrency 80 \
+            --min-instances 0 --max-instances 3 \
+            --timeout 300 \
+            --set-env-vars MONGODB_URI="${MONGODB_URI}",NODE_ENV="${NODE_ENV}",CORS_ALLOWED_ORIGINS="${SAFE_CORS}" \
+            --quiet
