@@ -97,21 +97,21 @@ jobs:
           RUNTIME_SA:  ${{ secrets[format('RUNTIME_SA_{0}', steps.map.outputs.ENV)] }}
           MONGODB_URI: ${{ secrets[format('MONGODB_URI_{0}', steps.map.outputs.ENV)] }}
           NODE_ENV:    ${{ steps.map.outputs.NODE_ENV }}
-          # 예) DEV: "http://localhost:5173,https://frontend-dev-....run.app"
           CORS_ALLOWED_ORIGINS: ${{ secrets[format('FRONTEND_URL_{0}', steps.map.outputs.ENV)] }}
         shell: bash
         run: |
           set -euo pipefail
+
           TAG="${GITHUB_SHA}"
           IMAGE="${REGION}-docker.pkg.dev/${PROJECT_ID}/${AR_REPO}/backend-${ENV_LOWER}:${TAG}"
           SERVICE="backend-${ENV_LOWER}"
 
-          # 콤마/URL/콜론 등 특수문자 안전 전송을 위해 파일 사용
-          cat > envvars.yaml <<'YAML'
-          MONGODB_URI: "'"${MONGODB_URI}"'"
-          NODE_ENV: "'"${NODE_ENV}"'"
-          CORS_ALLOWED_ORIGINS: "'"${CORS_ALLOWED_ORIGINS}"'"
-          YAML
+          # ⚠️ heredoc 토큰에 따옴표를 붙이지 말고, 키는 맨 앞 열에 둡니다.
+          cat > envvars.yaml <<EOF
+          MONGODB_URI: "${MONGODB_URI}"
+          NODE_ENV: "${NODE_ENV}"
+          CORS_ALLOWED_ORIGINS: "${CORS_ALLOWED_ORIGINS}"
+          EOF
 
           echo "Deploying ${SERVICE} with image ${IMAGE}"
           gcloud run deploy "${SERVICE}" \
