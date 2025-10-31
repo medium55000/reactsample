@@ -17,7 +17,7 @@ if (!MONGODB_URI) {
 
 mongoose.set('strictQuery', true)
 
-// ① 재시도 로직
+// ① 재시도 로직.
 async function connectWithRetry(retry = 0) {
   const maxDelay = 30000
   const baseDelay = 1000
