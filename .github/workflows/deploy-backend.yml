@@ -78,7 +78,7 @@ jobs:
             --tag "${REGION}-docker.pkg.dev/${PROJECT_ID}/${AR_REPO}/backend-${ENV_LOWER}:${TAG}" \
             --region "${REGION}"
 
-      # 4) Cloud Run 배포 (여기만 변경)
+      # 4) Cloud Run 배포 (여기만 변경).
       - name: Deploy to Cloud Run
         env:
           PROJECT_ID:  ${{ secrets[format('GCP_PROJECT_ID_{0}', steps.map.outputs.ENV)] }}
