@@ -35,7 +35,7 @@ app.get('/', (_req, res) => res.status(200).send('OK'))         // 루트 헬스
 app.get('/health', (_req, res) => res.json({ status: 'ok' }))
 app.get('/api/health', (_req, res) => res.json({ status: 'ok' }))
 
-// 간단한 Todo 모델/라우트 (있던 코드 유지)
+// 간단한 Todo 모델/라우트 (있던 코드 유지).
 const TodoSchema = new mongoose.Schema(
   { title: { type: String, required: true }, done: { type: Boolean, default: false } },
   { timestamps: true }
