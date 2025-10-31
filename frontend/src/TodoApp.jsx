@@ -1,5 +1,7 @@
 import { useEffect, useState } from 'react';
-import { listTodos, createTodo, patchTodo, deleteTodo } from './src/lib/api'; // 경로 맞춰주세요
+// import { listTodos, createTodo, patchTodo, deleteTodo } from './src/lib/api'; // 경로 맞춰주세요
+//import { listTodos, getTodo, createTodo, patchTodo, deleteTodo } from './lib/api';
+import { listTodos, createTodo, patchTodo, deleteTodo } from './lib/api';
 
 export default function TodoApp() {
   const [loading, setLoading] = useState(false);
