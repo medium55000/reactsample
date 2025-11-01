@@ -10,7 +10,7 @@ export const api = axios.create({
   },
 });
 
-// ✅ Global Error Interceptor
+// ✅ Global Error Interceptor.
 api.interceptors.response.use(
   (res) => res,
   (err) => {
