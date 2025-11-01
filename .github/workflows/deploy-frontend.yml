@@ -44,7 +44,7 @@ jobs:
               ;;
           esac
 
-      # GCP 인증
+      # GCP 인증.
       - name: Auth to Google Cloud
         uses: google-github-actions/auth@v2
         with:
