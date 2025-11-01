@@ -39,7 +39,7 @@ app.get('/api/health', (_req, res) => res.json({ status: 'ok' }))
 // ✅ 여기 추가
 app.use('/api/todos', todosRouter);
 
-// 간단한 Todo 모델/라우트 (있던 코드 유지).
+// 간단한 Todo 모델/라우트 (있던 코드 유지)
 const TodoSchema = new mongoose.Schema(
   { title: { type: String, required: true }, done: { type: Boolean, default: false } },
   { timestamps: true }
