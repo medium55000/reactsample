@@ -17,6 +17,7 @@ steps:
       - build
       - -t
       - ${_REGION}-docker.pkg.dev/${_PROJECT_ID}/${_AR_REPO}/frontend-${_ENV_LOWER}:${_TAG}
+      # Build args passed into Dockerfile
       - --build-arg
       - BUILD_MODE=${_BUILD_MODE}
       - --build-arg
@@ -33,7 +34,9 @@ steps:
 
   - name: gcr.io/cloud-builders/docker
     id: Push image
-    args: ["push", "${_REGION}-docker.pkg.dev/${_PROJECT_ID}/${_AR_REPO}/frontend-${_ENV_LOWER}:${_TAG}"]
+    args:
+      - push
+      - ${_REGION}-docker.pkg.dev/${_PROJECT_ID}/${_AR_REPO}/frontend-${_ENV_LOWER}:${_TAG}
 
 images:
   - ${_REGION}-docker.pkg.dev/${_PROJECT_ID}/${_AR_REPO}/frontend-${_ENV_LOWER}:${_TAG}

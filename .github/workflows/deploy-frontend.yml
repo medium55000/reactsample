@@ -55,7 +55,19 @@ jobs:
         with:
           project_id: ${{ secrets[format('GCP_PROJECT_ID_{0}', steps.map.outputs.ENV)] }}
 
-      # Cloud Build YAML + substitutions 로 빌드 인자 전달
+      # 필요한 시크릿 존재 확인 (특히 API 베이스 URL)
+      - name: Preflight | verify required secrets
+        env:
+          API_BASE_URL: ${{ secrets[format('API_BASE_URL_{0}', steps.map.outputs.ENV)] }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ -z "${API_BASE_URL:-}" ]; then
+            echo "❌ Missing secret: API_BASE_URL_${{ steps.map.outputs.ENV }}"; exit 1
+          fi
+          echo "✓ API_BASE_URL present."
+
+      # Cloud Build 로 이미지 빌드 (substitutions → Docker build-arg)
       - name: Build & Push image via Cloud Build
         env:
           PROJECT_ID: ${{ secrets[format('GCP_PROJECT_ID_{0}', steps.map.outputs.ENV)] }}
@@ -64,10 +76,10 @@ jobs:
           ENV_LOWER:  ${{ steps.map.outputs.ENV_LOWER }}
           BUILD_MODE: ${{ steps.map.outputs.BUILD_MODE }}
 
-          # 백엔드 API 엔드포인트 (환경별 시크릿에 넣어두세요)
-          VITE_API_BASE_URL: ${{ secrets[format('VITE_API_BASE_URL_{0}', steps.map.outputs.ENV)] }}
+          # ▶ 백엔드 API 엔드포인트 (환경별)
+          API_BASE_URL: ${{ secrets[format('API_BASE_URL_{0}', steps.map.outputs.ENV)] }}
 
-          # 선택: 추가 VITE_* 시크릿 (없으면 빈값)
+          # (선택) 추가 프런트 런타임 값
           VITE_SENTRY_DSN:      ${{ secrets[format('VITE_SENTRY_DSN_{0}', steps.map.outputs.ENV)] }}
           VITE_PUBLIC_FLAG:     ${{ secrets[format('VITE_PUBLIC_FLAG_{0}', steps.map.outputs.ENV)] }}
           VITE_ANALYTICS_TOKEN: ${{ secrets[format('VITE_ANALYTICS_TOKEN_{0}', steps.map.outputs.ENV)] }}
@@ -79,7 +91,7 @@ jobs:
           gcloud builds submit frontend \
             --config=frontend/cloudbuild.yaml \
             --region="${REGION}" \
-            --substitutions=_PROJECT_ID="${PROJECT_ID}",_REGION="${REGION}",_AR_REPO="${AR_REPO}",_ENV_LOWER="${ENV_LOWER}",_TAG="${TAG}",_BUILD_MODE="${BUILD_MODE}",_VITE_API_BASE_URL="${VITE_API_BASE_URL:-}",_VITE_SENTRY_DSN="${VITE_SENTRY_DSN:-}",_VITE_ANALYTICS_TOKEN="${VITE_ANALYTICS_TOKEN:-}",_VITE_PUBLIC_FLAG="${VITE_PUBLIC_FLAG:-}"
+            --substitutions=_PROJECT_ID="${PROJECT_ID}",_REGION="${REGION}",_AR_REPO="${AR_REPO}",_ENV_LOWER="${ENV_LOWER}",_TAG="${TAG}",_BUILD_MODE="${BUILD_MODE}",_VITE_API_BASE_URL="${API_BASE_URL}",_VITE_SENTRY_DSN="${VITE_SENTRY_DSN:-}",_VITE_ANALYTICS_TOKEN="${VITE_ANALYTICS_TOKEN:-}",_VITE_PUBLIC_FLAG="${VITE_PUBLIC_FLAG:-}"
 
       - name: Deploy to Cloud Run (frontend)
         env:
