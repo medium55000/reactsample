@@ -19,7 +19,7 @@ export default function TodoApp() {
     }
   }
 
-  useEffect(() => { load(); }, []); // 초기 로드
+  useEffect(() => { load(); }, []); // 초기 로드.
 
   async function onCreate(e) {
     e.preventDefault();
