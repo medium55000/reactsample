@@ -64,7 +64,7 @@ jobs:
           ENV_LOWER:  ${{ steps.map.outputs.ENV_LOWER }}
           BUILD_MODE: ${{ steps.map.outputs.BUILD_MODE }}
 
-          # ✅ 실제 보유 시크릿 이름과 일치 (API_BASE_URL_*)
+          #실제 보유 시크릿 이름과 일치 (API_BASE_URL_*)
           VITE_API_BASE_URL: ${{ secrets[format('API_BASE_URL_{0}', steps.map.outputs.ENV)] }}
 
           # Optional
