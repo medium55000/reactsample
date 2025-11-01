@@ -3,6 +3,8 @@ import { useEffect, useState } from 'react';
 //import { listTodos, getTodo, createTodo, patchTodo, deleteTodo } from './lib/api';
 import { listTodos, createTodo, patchTodo, deleteTodo } from './lib/api';
 
+console.log('VITE_API_BASE_URL =', import.meta.env.VITE_API_BASE_URL);
+
 export default function TodoApp() {
   const [loading, setLoading] = useState(false);
   const [items, setItems] = useState([]);
